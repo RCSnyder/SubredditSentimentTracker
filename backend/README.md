@@ -7,7 +7,14 @@
 windows:
 > env/Scripts/activate
 
-linux:
+#### alternative for windows
+> pip install virtualenv
+>
+> virtualenv <env-name>
+>
+> <env-name>\Scripts\activate.bat
+
+## linux:
 > source env/bin/activate
 
 ## update pip
