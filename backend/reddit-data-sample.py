@@ -63,8 +63,10 @@ def test_get_comments_from_submission():
     # gets a test submission
     threads = list(get_submissions(TEST_SUBREDDIT, TEST_START_DATE, TEST_END_DATE, TEST_MAX))
     submission_id = threads[0].d_['id']
+    thread_full_link = threads[0].d_['full_link']
 
     submission = get_comments_from_submission(submission_id)
+    print(thread_full_link)
     for top_level_comment in submission.comments:
         print(top_level_comment.body)
 
