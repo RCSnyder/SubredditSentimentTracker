@@ -2,9 +2,10 @@ from psaw import PushshiftAPI
 import datetime as dt
 import praw
 
-TEST_START_DATE = int(dt.datetime(2020, 1, 1).timestamp())
-TEST_END_DATE = int(dt.datetime(2020, 1, 2).timestamp())
-TEST_MAX = 1
+TEST_START_DATE = int(dt.datetime(2020, 2, 1).timestamp())
+TEST_END_DATE = int(dt.datetime(2020, 2, 2).timestamp())
+TEST_MAX = 100
+MIN_COMMENTS = 10
 TEST_SUBREDDIT = 'askreddit'
 
 # PRAW OAuth stuff
@@ -64,14 +65,63 @@ def test_get_comments_from_submission():
     # gets a test submission
     threads = list(get_submissions(TEST_SUBREDDIT, TEST_START_DATE, TEST_END_DATE, TEST_MAX))
     submission_id = threads[0].d_['id']
+
+    # prints link to thread
     thread_full_link = threads[0].d_['full_link']
+    print(thread_full_link)
+
+    # prints submission title
+    thread_title = threads[0].d_['title']
+    print(thread_title)
 
     submission = get_comments_from_submission(submission_id)
-    print(thread_full_link)
     for top_level_comment in submission.comments:
         print(top_level_comment.body)
 
 
-test_get_comments()
-test_get_submissions()
-test_get_comments_from_submission()
+def get_list_of_submission_dictionaries(subreddit, start_date, end_date, limit):
+    """returns a list of dictionaries of each submission in a given subreddit between a period of time"""
+    list_of__submission_dictionaries = []
+
+    api = PushshiftAPI()
+    threads = list(api.search_submissions(after=start_date, before=end_date,
+                                          subreddit=subreddit, limit=limit))
+
+    # appends thread submission dictionary to a list
+    for thread_submission in threads:
+        list_of__submission_dictionaries.append(thread_submission.d_)
+
+    return list_of__submission_dictionaries
+
+
+def test_get_list_of_submission_dictionaries():
+    submission_list = get_list_of_submission_dictionaries(TEST_SUBREDDIT, TEST_START_DATE, TEST_END_DATE, TEST_MAX)
+    print(submission_list[0])
+    print(len(submission_list))
+
+
+def filter_list_of_dictionary_submission(submission_list, min_comments):
+    """filters the list of submission dictionaries to only include submissions with more than min_comments comments"""
+    filtered_submission_list = []
+    # filter submission_list for submissions with > min_comments # comments
+    for submission_dictionary in submission_list:
+        if submission_dictionary['num_comments'] >= min_comments:
+            filtered_submission_list.append(submission_dictionary)
+
+    return filtered_submission_list
+
+def test_filter_list_of_dictionary_submission():
+    """prints length of the submission list before and after filtering by min_comments number"""
+    submission_list = get_list_of_submission_dictionaries(TEST_SUBREDDIT, TEST_START_DATE, TEST_END_DATE, TEST_MAX)
+    print(len(submission_list))
+
+    filtered_list = filter_list_of_dictionary_submission(submission_list, MIN_COMMENTS)
+    print(len(filtered_list))
+
+
+
+# test_get_comments()
+# test_get_submissions()
+# test_get_comments_from_submission()
+# test_get_list_of_submission_dictionaries()
+test_filter_list_of_dictionary_submission()
