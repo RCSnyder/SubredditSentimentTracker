@@ -60,6 +60,7 @@ def get_comments_from_submission(submission_id):
 
 
 def test_get_comments_from_submission():
+    """tests get_comments_from_submission by printing out the comments of a submission"""
     # gets a test submission
     threads = list(get_submissions(TEST_SUBREDDIT, TEST_START_DATE, TEST_END_DATE, TEST_MAX))
     submission_id = threads[0].d_['id']
