@@ -11,7 +11,7 @@ import pandas as pd
 TEST_START_DATE = int(dt.datetime(2020, 11, 1, 0, 0).timestamp())
 TEST_END_DATE = int(dt.datetime(2020, 11, 2, 0, 0).timestamp())
 # print(TEST_END_DATE - TEST_START_DATE)
-TEST_MAX = 3
+TEST_MAX = 100
 MIN_COMMENTS = 500
 TEST_SUBREDDIT = 'politics'
 
@@ -117,7 +117,7 @@ def save_historical_submission_comments(list_of_dictionary_submissions, file_nam
 
 
 def test_save_historical_submission_comments():
-    #data = get_historical_submissions(TEST_SUBREDDIT, TEST_MAX)
+    """tests the save function with 3 submission comments"""
     data = []
     threads = list(get_submissions(TEST_SUBREDDIT, TEST_START_DATE, TEST_END_DATE, TEST_MAX))
     for item in threads:
@@ -125,6 +125,11 @@ def test_save_historical_submission_comments():
 
     save_historical_submission_comments(data, TEST_SUBREDDIT+'_TEST.csv')
 
+
+def run_save_historical_data():
+    """runs the full 30 month submission/comment scrape and saves it to a csv"""
+    data = get_historical_submissions(TEST_SUBREDDIT, TEST_MAX)
+    save_historical_submission_comments(data, TEST_SUBREDDIT + '_past_30_months_comments.csv')
 
 
 def get_all_submissions_in_24_hours(subreddit, start_date, end_date, limit):
@@ -347,4 +352,5 @@ def test_get_comments_by_percentage():
 # get_number_of_submissions()
 # test_get_all_submissions_in_24_hours()
 # test_get_historical_submissions()
-test_save_historical_submission_comments()
+# test_save_historical_submission_comments()
+run_save_historical_data()
