@@ -361,9 +361,9 @@ def test_read_csv_to_dataframe(fname):
 
 
 def sanitize_characters(raw_input_file, clean_output_file):
-    """given a csv file removes errors in utf-8 encoding and writes to a clean file"""
-    input_file = codecs.open(raw_input_file, 'r', encoding='utf-8', errors='replace')
-    output_file = open(clean_output_file, 'w', encoding='utf-8')
+    """given a csv file removes errors in ascii encoding, drops the errors and writes to a clean file"""
+    input_file = codecs.open(raw_input_file, 'r', encoding='ascii', errors='ignore')
+    output_file = open(clean_output_file, 'w', encoding='ascii', errors='ignore')
 
     for line in input_file:
         # removes extra newline
@@ -394,3 +394,4 @@ def run_sanitize_characters():
 # run_save_historical_data()
 # test_read_csv_to_dataframe()
 # run_sanitize_characters()
+
