@@ -5,11 +5,13 @@ from praw.models import MoreComments
 import time
 import numpy as np
 import random
+import csv
+import pandas as pd
 
-TEST_START_DATE = int(dt.datetime(2019, 12, 1, 0, 0).timestamp())
-TEST_END_DATE = int(dt.datetime(2020, 12, 1, 0, 0).timestamp())
-print(TEST_END_DATE - TEST_START_DATE)
-TEST_MAX = 100
+TEST_START_DATE = int(dt.datetime(2020, 11, 1, 0, 0).timestamp())
+TEST_END_DATE = int(dt.datetime(2020, 11, 2, 0, 0).timestamp())
+# print(TEST_END_DATE - TEST_START_DATE)
+TEST_MAX = 3
 MIN_COMMENTS = 500
 TEST_SUBREDDIT = 'politics'
 
@@ -36,9 +38,7 @@ def get_historical_submissions(subreddit, limit):
     past_30_months = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
                       12, 11, 10, 9, 8, 7, 6, 5, 4, 3,
                       2, 1, 12, 11, 10, 9, 8, 7, 6, 5]
-
     all_submissions = []
-
     day = 0
     year = 2020
     hacky_year_flag = 0
@@ -89,6 +89,42 @@ def test_get_historical_submissions():
 
     print('total submissions:', len(submission_dictionary))
     print("total comments:", num_comments)
+
+
+def save_historical_submission_comments(list_of_dictionary_submissions, file_name):
+    """saves all of the comments from a list of dictionary submissions into a single column csv"""
+    all_comments_list = []
+    submission_count = 1
+
+    for submission_dict in list_of_dictionary_submissions:
+        print('saving comments from submission', submission_count, '/', len(list_of_dictionary_submissions))
+        submission_count += 1
+        submission = (REDDIT.submission(id=submission_dict['id']))
+
+        submission.comments.replace_more(limit=None)
+        for comment in submission.comments.list():
+            temp_dict = {'body': comment.body, 'comment_id': comment}
+            all_comments_list.append(temp_dict)
+        print('total comments: ', len(all_comments_list))
+
+    comments_df = pd.DataFrame(all_comments_list, columns=['body', 'comment_id'])
+
+    print(comments_df)
+
+    print('saving comments to file:', file_name, '...')
+    comments_df.to_csv(file_name)
+    print('done.')
+
+
+def test_save_historical_submission_comments():
+    #data = get_historical_submissions(TEST_SUBREDDIT, TEST_MAX)
+    data = []
+    threads = list(get_submissions(TEST_SUBREDDIT, TEST_START_DATE, TEST_END_DATE, TEST_MAX))
+    for item in threads:
+        data.append(item.d_)
+
+    save_historical_submission_comments(data, TEST_SUBREDDIT+'_TEST.csv')
+
 
 
 def get_all_submissions_in_24_hours(subreddit, start_date, end_date, limit):
@@ -308,9 +344,7 @@ def test_get_comments_by_percentage():
 # test_filter_list_of_dictionary_submission()
 # test_print_comments()
 # test_get_comments_by_percentage()
-
 # get_number_of_submissions()
-
 # test_get_all_submissions_in_24_hours()
-
-test_get_historical_submissions()
+# test_get_historical_submissions()
+test_save_historical_submission_comments()
