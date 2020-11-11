@@ -244,3 +244,4 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+backend/politics_past_30_months_comments.csv
