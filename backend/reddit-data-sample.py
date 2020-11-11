@@ -380,6 +380,46 @@ def run_sanitize_characters():
     print(df.head())
 
 
+def standardize_comments(df, column_name):
+    """standardizes the comment bodies for sentiment analysis and tone analysis can be performed """
+
+    # remove rows that contain '[deleted]' in the comment body
+
+    # remove rows that contain 'I am a bot' in the comment body
+
+    # remove rows that contain 'allow at least 10 minutes to pass between each submission' in the comment body
+
+    # replace characters in comment bodies
+
+    # df[column_name] = df[column_name].str.replace(r"http\S+", "")
+    # df[column_name] = df[column_name].str.replace(r"http", "")
+    # df[column_name] = df[column_name].str.replace(r"@\S+", "")
+    # df[column_name] = df[column_name].str.replace(r"[^A-Za-z0-9(),!?@\'\`\"\_\n]", " ")
+    # df[column_name] = df[column_name].str.replace(r"@", "at")
+    # df[column_name] = df[column_name].str.lower()
+
+    # remove '>'
+
+    # needs to figure out a way to get rid of this pattern of linking in comment bodies
+    #  [your submission](https://redd.it/jdn4dx)
+    #  [Dripping with money: A look behind the gated affluence of Trumps Palm Beach](https://redd.it/jdn4dx)
+    #  [No Queue Flooding](https://www.reddit.com/r/politics/wiki/index#wiki_do_not_flood_the_new_queue.)
+
+    return df
+
+
+def run_standardize_comments():
+    """runs standardize comments function and saves it into a new file"""
+    df = pd.read_csv('politics_past_30_months_comments_cleaned.csv')
+    df = df.drop(['Unnamed: 0'], axis=1)
+
+    standardized_df = standardize_comments(df, 'body')
+    print(standardized_df.head())
+
+    # THIS MIGHT BRING BACK THE UTF-8 ENCODING EMOJIS. MIGHT HAVE TO WRITE TO CSV IN ASCII
+    standardized_df.to_csv('politics_past_30_months_comments_cleaned_standardized.csv')
+
+
 # test_get_comments()
 # test_get_submissions()
 # test_get_comments_from_submission()
@@ -394,4 +434,3 @@ def run_sanitize_characters():
 # run_save_historical_data()
 # test_read_csv_to_dataframe()
 # run_sanitize_characters()
-
