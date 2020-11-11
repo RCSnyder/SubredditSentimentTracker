@@ -1,3 +1,5 @@
+import os
+
 from psaw import PushshiftAPI
 import datetime as dt
 import praw
@@ -7,6 +9,9 @@ import numpy as np
 import random
 import csv
 import pandas as pd
+import codecs
+import re
+import sys
 
 TEST_START_DATE = int(dt.datetime(2020, 11, 1, 0, 0).timestamp())
 TEST_END_DATE = int(dt.datetime(2020, 11, 2, 0, 0).timestamp())
@@ -123,7 +128,7 @@ def test_save_historical_submission_comments():
     for item in threads:
         data.append(item.d_)
 
-    save_historical_submission_comments(data, TEST_SUBREDDIT+'_TEST.csv')
+    save_historical_submission_comments(data, TEST_SUBREDDIT + '_TEST.csv')
 
 
 def run_save_historical_data():
@@ -341,8 +346,39 @@ def test_get_comments_by_percentage():
         comment_instance = REDDIT.comment(c)
         print(comment_instance.body)
 
+
 def read_csv_to_dataframe(file_name):
-    
+    """reads a csv file into a dataframe and drops the redundant index column"""
+    df = pd.read_csv(file_name)
+    df = df.drop(['Unnamed: 0'], axis=1)
+    return df
+
+
+def test_read_csv_to_dataframe(fname):
+    """tests the read csv file function"""
+    df = read_csv_to_dataframe(fname)
+    print(df.head())
+
+
+def sanitize_characters(raw_input_file, clean_output_file):
+    """given a csv file removes errors in utf-8 encoding and writes to a clean file"""
+    input_file = codecs.open(raw_input_file, 'r', encoding='utf-8', errors='replace')
+    output_file = open(clean_output_file, 'w', encoding='utf-8')
+
+    for line in input_file:
+        # removes extra newline
+        line = line.rstrip('\n')
+        output_file.write(line)
+
+
+def run_sanitize_characters():
+    """runs clean_comments() with the politics_past_30_months_comments.csv and prints head of cleaned file"""
+    sanitize_characters('politics_past_30_months_comments.csv', 'politics_past_30_months_comments_cleaned.csv')
+
+    df = pd.read_csv('politics_past_30_months_comments_cleaned.csv')
+    df = df.drop(['Unnamed: 0'], axis=1)
+    print(df.head())
+
 
 # test_get_comments()
 # test_get_submissions()
@@ -356,3 +392,5 @@ def read_csv_to_dataframe(file_name):
 # test_get_historical_submissions()
 # test_save_historical_submission_comments()
 # run_save_historical_data()
+# test_read_csv_to_dataframe()
+# run_sanitize_characters()
