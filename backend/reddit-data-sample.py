@@ -382,30 +382,43 @@ def run_sanitize_characters():
 
 def standardize_comments(df, column_name):
     """standardizes the comment bodies for sentiment analysis and tone analysis can be performed """
+    # create a copy of the dataframe
+    df_copy = df.copy()
 
-    # remove rows that contain '[deleted]' in the comment body
+    # remove rows that contain '[deleted]' or '[removed]' in the comment body
+    df_copy = df_copy[(df[column_name] != '[removed]') & (df[column_name] != '[deleted]')]
+
+    # remove rows with null values
+    df_copy.dropna(inplace=True)
+
+    # remove rows with the bot comment that starts with "Register to vote"
+    df_copy = df_copy[~df_copy[column_name].str.startswith('Register to vote')]
+
+    # remove rows with 'Thank you for participating in /r/Politics' in the body
+    df_copy = df_copy[~df_copy[column_name].str.contains('Thank you for participating in /r/Politics')]
 
     # remove rows that contain 'I am a bot' in the comment body
-
-    # remove rows that contain 'allow at least 10 minutes to pass between each submission' in the comment body
+    df_copy = df_copy[~df_copy[column_name].str.contains('I am a bot')]
 
     # replace characters in comment bodies
-
-    # df[column_name] = df[column_name].str.replace(r"http\S+", "")
-    # df[column_name] = df[column_name].str.replace(r"http", "")
-    # df[column_name] = df[column_name].str.replace(r"@\S+", "")
-    # df[column_name] = df[column_name].str.replace(r"[^A-Za-z0-9(),!?@\'\`\"\_\n]", " ")
-    # df[column_name] = df[column_name].str.replace(r"@", "at")
-    # df[column_name] = df[column_name].str.lower()
-
-    # remove '>'
+    df_copy[column_name] = df_copy[column_name].str.replace(r"http\S+", "")
+    df_copy[column_name] = df_copy[column_name].str.replace(r"http", "")
+    df_copy[column_name] = df_copy[column_name].str.replace(r"@\S+", "")
+    df_copy[column_name] = df_copy[column_name].str.replace(r"[^A-Za-z0-9(),!?@\'\`\"\_\n]", " ")
+    df_copy[column_name] = df_copy[column_name].str.replace(">", "")
+    df_copy[column_name] = df_copy[column_name].str.replace("    ", " ")
+    df_copy[column_name] = df_copy[column_name].str.replace("   ", " ")
+    df_copy[column_name] = df_copy[column_name].str.replace("  ", " ")
+    df_copy[column_name] = df_copy[column_name].str.replace("\"", "")
+    df_copy[column_name] = df_copy[column_name].str.replace(r"@", "at")
+    df_copy[column_name] = df_copy[column_name].str.lower()
 
     # needs to figure out a way to get rid of this pattern of linking in comment bodies
     #  [your submission](https://redd.it/jdn4dx)
     #  [Dripping with money: A look behind the gated affluence of Trumps Palm Beach](https://redd.it/jdn4dx)
     #  [No Queue Flooding](https://www.reddit.com/r/politics/wiki/index#wiki_do_not_flood_the_new_queue.)
 
-    return df
+    return df_copy
 
 
 def run_standardize_comments():
@@ -415,6 +428,10 @@ def run_standardize_comments():
 
     standardized_df = standardize_comments(df, 'body')
     print(standardized_df.head())
+    print()
+    print('original length:', len(df))
+    print('standardized length:', len(standardized_df))
+    print('removed', len(df) - len(standardized_df), 'comments')
 
     # THIS MIGHT BRING BACK THE UTF-8 ENCODING EMOJIS. MIGHT HAVE TO WRITE TO CSV IN ASCII
     standardized_df.to_csv('politics_past_30_months_comments_cleaned_standardized.csv')
@@ -434,3 +451,5 @@ def run_standardize_comments():
 # run_save_historical_data()
 # test_read_csv_to_dataframe()
 # run_sanitize_characters()
+
+run_standardize_comments()
