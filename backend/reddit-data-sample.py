@@ -12,6 +12,10 @@ import pandas as pd
 import codecs
 import re
 import sys
+import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+
+# nltk.download('vader_lexicon')
 
 TEST_START_DATE = int(dt.datetime(2020, 11, 1, 0, 0).timestamp())
 TEST_END_DATE = int(dt.datetime(2020, 11, 2, 0, 0).timestamp())
@@ -437,6 +441,29 @@ def run_standardize_comments():
     standardized_df.to_csv('politics_past_30_months_comments_cleaned_standardized.csv')
 
 
+def add_vader_sentiment_scores(df):
+    """given a dataframe with 'body' as the column name for comment bodies
+       calculates the nltk vader sentiment scores and adds them to
+       'vader_compound_score', 'vader_negative_score', 'vader_neutral_score', 'vader_positive_score'"""
+    sid = SentimentIntensityAnalyzer()
+    df_copy = df.copy()
+
+    df_copy['vader_compound_score'] = [sid.polarity_scores(str(x))['compound'] for x in df_copy['body']]
+    df_copy['vader_negative_score'] = [sid.polarity_scores(str(x))['neg'] for x in df_copy['body']]
+    df_copy['vader_neutral_score'] = [sid.polarity_scores(str(x))['neu'] for x in df_copy['body']]
+    df_copy['vader_positive_score'] = [sid.polarity_scores(str(x))['pos'] for x in df_copy['body']]
+
+    return df_copy
+
+
+def run_add_vader_sentiment_scores():
+    """runs add_vader_sentiment_scores"""
+    df = pd.read_csv('politics_past_30_months_comments_cleaned_standardized.csv', encoding='utf-8')
+    df = df.drop(['Unnamed: 0'], axis=1)
+    scores_df = add_vader_sentiment_scores(df)
+    scores_df.to_csv('politics_past_30_months_comments_cleaned_standardized_vader.csv')
+
+
 # test_get_comments()
 # test_get_submissions()
 # test_get_comments_from_submission()
@@ -452,3 +479,4 @@ def run_standardize_comments():
 # test_read_csv_to_dataframe()
 # run_sanitize_characters()
 # run_standardize_comments()
+# run_add_vader_sentiment_scores()
