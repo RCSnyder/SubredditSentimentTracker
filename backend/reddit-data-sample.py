@@ -451,5 +451,4 @@ def run_standardize_comments():
 # run_save_historical_data()
 # test_read_csv_to_dataframe()
 # run_sanitize_characters()
-
-run_standardize_comments()
+# run_standardize_comments()
