@@ -18,7 +18,11 @@ import json
 from ibm_watson import ToneAnalyzerV3
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 from ibm_watson import ApiException
+import flair
+from segtok.segmenter import split_single
 
+
+flair_sentiment = flair.models.TextClassifier.load('en-sentiment')
 # nltk.download('vader_lexicon')
 
 TEST_START_DATE = int(dt.datetime(2020, 11, 1, 0, 0).timestamp())
@@ -497,6 +501,49 @@ def test_get_tone_from_IBM():
     get_tone_from_IBM(comments[0])
 
 
+def get_flair_sentiment(comment):
+    """gets the sentiment scores on a comment using flair"""
+
+    for c in comment:
+        text = flair.data.Sentence(c)
+        flair_sentiment.predict(text)
+        value = text.labels[0].to_dict()['value']
+        print(text.labels)
+        print(value)
+        if value == 'POSITIVE':
+            result = text.to_dict()['labels'][0]['confidence']
+        else:
+            result = -(text.to_dict()['labels'][0]['confidence'])
+
+        result = round(result, 5)
+
+        print(result)
+        print()
+
+
+def test_get_flair_sentiment():
+    """runs get_flair_sentiment witha  test comment and prints the result"""
+    comments = ['I think this movie was really good and will go and see it again.',
+                'This movie really sucked and I hated it',
+                'I think this movie was really good and will go and see it again.'
+                'This movie really sucked and I hated it']
+    get_flair_sentiment(comments)
+
+
+def make_sentences(comment):
+    """ Break apart text into a list of sentences """
+    sentences = [sent for sent in split_single(comment)]
+    return sentences
+
+
+def test_make_sentences():
+    """tests make_sentences with a 2 sentence comment"""
+    long_comment = ['I think this movie was really good and will go and see it again. '
+                    'This movie really sucked and I hated it']
+    new_sentences = make_sentences(long_comment[0])
+    print(new_sentences)
+
+
 # test_get_comments()
 # test_get_submissions()
 # test_get_comments_from_submission()
@@ -513,4 +560,6 @@ def test_get_tone_from_IBM():
 # run_sanitize_characters()
 # run_standardize_comments()
 # run_add_vader_sentiment_scores()
-test_get_tone_from_IBM()
+# test_get_tone_from_IBM()
+# test_get_flair_sentiment()
+test_make_sentences()
