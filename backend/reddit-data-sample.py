@@ -14,6 +14,10 @@ import re
 import sys
 import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import json
+from ibm_watson import ToneAnalyzerV3
+from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
+from ibm_watson import ApiException
 
 # nltk.download('vader_lexicon')
 
@@ -464,6 +468,35 @@ def run_add_vader_sentiment_scores():
     scores_df.to_csv('politics_past_30_months_comments_cleaned_standardized_vader.csv')
 
 
+def get_tone_from_IBM(comment):
+    """sends an api request to IBM to get back a json object"""
+
+    IBM_API_KEY = "OfhB70w2GIjB99k6zAF_k-ezpWK1evbmG0zk9Mfs35_v"
+    IBM_URL = "https://api.us-south.tone-analyzer.watson.cloud.ibm.com"
+
+    authenticator = IAMAuthenticator(IBM_API_KEY)
+    tone_analyzer = ToneAnalyzerV3(
+        version='2017-09-21',
+        authenticator=authenticator
+    )
+    tone_analyzer.set_service_url(IBM_URL)
+
+    try:
+        tone_analysis = tone_analyzer.tone(
+            {'text': comment},
+            content_type='application/json'
+        ).get_result()
+        print(json.dumps(tone_analysis, indent=2))
+    except ApiException as ex:
+        print("Method failed with status code " + str(ex.code) + ": " + ex.message)
+
+
+def test_get_tone_from_IBM():
+    """runs get_tone_from_IBM and prints out response object"""
+    comments = ['simple, just create an unmasked line in a separate part of the location let them infect each other ']
+    get_tone_from_IBM(comments[0])
+
+
 # test_get_comments()
 # test_get_submissions()
 # test_get_comments_from_submission()
@@ -480,3 +513,4 @@ def run_add_vader_sentiment_scores():
 # run_sanitize_characters()
 # run_standardize_comments()
 # run_add_vader_sentiment_scores()
+test_get_tone_from_IBM()
