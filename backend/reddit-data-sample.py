@@ -47,6 +47,17 @@ REDDIT = praw.Reddit(client_id=CLIENT_ID, client_secret=CLIENT_SECRET,
 
 API = PushshiftAPI()
 
+IBM_API_KEY = "OfhB70w2GIjB99k6zAF_k-ezpWK1evbmG0zk9Mfs35_v"
+IBM_API = "ch7dMr1nkRWOKvNo_fw4exPB5CdeOAqvMsCjxxROa4up"
+IBM_URL = "https://api.us-south.tone-analyzer.watson.cloud.ibm.com/instances/259eb6a9-2ccd-4a2b-aa91-6a233298d4ea"
+
+authenticator = IAMAuthenticator(IBM_API)
+TONE_ANALYZER = ToneAnalyzerV3(
+    version='2017-09-21',
+    authenticator=authenticator
+)
+TONE_ANALYZER.set_service_url(IBM_URL)
+
 
 def get_historical_submissions(subreddit, limit):
     """returns a list of submission dictionaries from the past 30 months,
@@ -424,6 +435,12 @@ def standardize_comments(df, column_name):
     df_copy[column_name] = df_copy[column_name].str.replace(r"@", "at")
     df_copy[column_name] = df_copy[column_name].str.lower()
 
+    # remove rows with empty comment strings
+    df_copy = df_copy[df_copy[column_name] != '']
+
+    # remove rows with comment strings containing only a space
+    df_copy = df_copy[df_copy[column_name] != ' ']
+
     # needs to figure out a way to get rid of this pattern of linking in comment bodies
     #  [your submission](https://redd.it/jdn4dx)
     #  [Dripping with money: A look behind the gated affluence of Trumps Palm Beach](https://redd.it/jdn4dx)
@@ -473,37 +490,113 @@ def run_add_vader_sentiment_scores():
 
 def get_tone_from_IBM(comment):
     """sends an api request to IBM to get back a json object"""
-
-    IBM_API_KEY = "OfhB70w2GIjB99k6zAF_k-ezpWK1evbmG0zk9Mfs35_v"
-    IBM_URL = "https://api.us-south.tone-analyzer.watson.cloud.ibm.com"
-
-    authenticator = IAMAuthenticator(IBM_API_KEY)
-    tone_analyzer = ToneAnalyzerV3(
-        version='2017-09-21',
-        authenticator=authenticator
-    )
-    tone_analyzer.set_service_url(IBM_URL)
-
     try:
-        tone_analysis = tone_analyzer.tone(
+        tone_analysis = TONE_ANALYZER.tone(
             {'text': comment},
             content_type='application/json'
         ).get_result()
-        print(json.dumps(tone_analysis, indent=2))
+        # print(json.dumps(tone_analysis, indent=2))
+        return tone_analysis
     except ApiException as ex:
         print("Method failed with status code " + str(ex.code) + ": " + ex.message)
 
 
+def get_columns_from_IBM_tone(tone_info_dictionary):
+    """parses the dictionary returned by IBM to return the values of the overall document tone in order
+        'Anger', 'Fear', 'Joy', 'Sadness', 'Analytical', 'Confident', 'Tentative'
+        if no value assigned by IBM will return 'None'"""
+
+    anger = 0
+    fear = 0
+    joy = 0
+    sadness = 0
+    analytical = 0
+    confident = 0
+    tentative = 0
+
+    for tone in tone_info_dictionary['document_tone']['tones']:
+        if tone['tone_id'] == 'anger':
+            anger = tone['score']
+        if tone['tone_id'] == 'fear':
+            fear = tone['score']
+        if tone['tone_id'] == 'joy':
+            joy = tone['score']
+        if tone['tone_id'] == 'sadness':
+            sadness = tone['score']
+        if tone['tone_id'] == 'analytical':
+            analytical = tone['score']
+        if tone['tone_id'] == 'confident':
+            confident = tone['score']
+        if tone['tone_id'] == 'tentative':
+            tentative = tone['score']
+
+    return [anger, fear, joy, sadness, analytical, confident, tentative]
+
+
 def test_get_tone_from_IBM():
     """runs get_tone_from_IBM and prints out response object"""
-    comments = ['simple, just create an unmasked line in a separate part of the location let them infect each other ']
-    get_tone_from_IBM(comments[0])
+    comments = ["This was a really sucky movie. I will probably never go see this movie ever again. I am going to "
+                "tell my whole family never to watch this movie. I very much enjoyed the special cameo in it "
+                "though. I loved the plot line."]
+    tone_info_dictionary = get_tone_from_IBM(comments[0])
+
+    tones = get_columns_from_IBM_tone(tone_info_dictionary)
+    print(tones)
+
+
+def get_tone_from_api_and_return_columns(comment):
+    """given a comment, calls the IBM tone api and returns the column values"""
+    tone_dict = get_tone_from_IBM(comment)
+    return get_columns_from_IBM_tone(tone_dict)
+
+
+def test_get_tone_from_api_and_return_columns():
+    comments = ["oh look, the soft power it's gone all soft maybe donald can get those fruit drops back from angela, "
+                "that'll fix things and from boris and emmanuel and scott and maybe buy some aluminium from jacinda "
+                "and oh god, perhaps an apology to justin and come to think of it there might be a problem",
+                "now we need a few republicans to indicate they don't stand with fascism anyone?",
+                "nancy pelosi the president has to realize that the words of the president of the united states weigh "
+                "a ton, pelosi told abc news and, in our political dialogue, to inject fear tactics into it, "
+                "especially a woman governor and her family, is so irresponsible and, in all fairness to people who "
+                "listen to him, people think the president is important and what he says should be adhered to chris "
+                "coons particularly troubling, tome perez fanning the flames of division, and slamming him for "
+                "lacking a plan on covid 19 and the economy if i were roundly condemning trump, i go quite a bit "
+                "farther than irresponsible and troubling accuse him of the obvious criminality, ffs it's more than "
+                "irresponsibility, he's doing it purposefully these frogs have been boiled i guess ",
+                "used the same chant for hillary because his base can't think past 3 syllables how many of his chants "
+                "are 3 syllables?",
+                "hilariously, texas is one of a number of states that restricts political clothing near polling "
+                "places so in this county poll workers will be required to turn away someone wearing a joe biden "
+                "shirt or a maga hat, but will be fined for turning away someone without a mask makes total sense ",
+                "how about looking at this from the other side unmasked voters should be charged with felony voter "
+                "intimidation ", "ironic, coming from the poster child state for voter suppression "]
+    for x in comments:
+        print(get_tone_from_api_and_return_columns(x))
+
+
+def add_tone_columns_to_csv(input_file_name, output_file_name):
+    """given a csv file, runs ibm's tone analysis on the 'body' column and saves the outputs to the columns,
+    'Anger', 'Fear', 'Joy', 'Sadness', 'Analytical', 'Confident', 'Tentative'"""
+    df = pd.read_csv(input_file_name)
+    df = df.drop(['Unnamed: 0'], axis=1)
+
+    # df['anger'], df['fear'], df['joy'], df['sadness'], df['analytical'], df['confident'], df['tentative']
+    df[['anger', 'fear', 'joy', 'sadness', 'analytical', 'confident', 'tentative']] = \
+        pd.DataFrame(df['body'].apply(get_tone_from_api_and_return_columns).tolist())
+
+    df.to_csv(output_file_name)
+
+
+def run_add_tone_columns_to_csv():
+    """tests the add_tone_columns_to_csv() function with
+    'test_data_for_tone.csv'
+    'test_data_for_tone_added.csv'"""
+    add_tone_columns_to_csv('test_data_for_tone.csv', 'test_data_for_tone_added.csv')
 
 
 def get_whole_flair_sentiment(comment):
     """given a comment body, gets the sentiment score on the entire comment.
        returns the whole_comment_sentiment score"""
-
     text = flair.data.Sentence(comment)
     flair_sentiment.predict(text)
     value = text.labels[0].to_dict()['value']
@@ -550,6 +643,8 @@ def get_sentence_sentiments(comment):
 
     split_comment = make_sentences(comment)
     for sentence in split_comment:
+        if sentence == ' ' or sentence == '' or sentence == '  ':
+            continue
         text = flair.data.Sentence(sentence)
         flair_sentiment.predict(text)
 
@@ -576,6 +671,116 @@ def test_get_sentence_sentiments():
     print('per sentence sentiment:', sentence_score_list)
     print()
 
+
+def get_whole_and_per_sentence_flair_sentiments(list_of_comments):
+    """given a list of variable length comments, gets the whole comment sentiment and the per sentence sentiment"""
+
+    for comment in list_of_comments:
+        result_sum = get_whole_flair_sentiment(comment)
+        print(comment)
+        print('Whole comment sentiment:', result_sum)
+        print()
+        sentence_score_list = get_sentence_sentiments(comment)
+        print(comment)
+        print('per sentence sentiment:', sentence_score_list)
+        print()
+
+
+def test_get_whole_and_per_sentence_flair_sentiments():
+    """tests getting the whole comment sentiment and the list of each sentence sentiment
+    given a list of comments of variable length"""
+    long_comments = ["This was a really sucky movie. I will probably never go see this movie ever again. I am going to "
+                     "tell my whole family never to watch this movie. I very much enjoyed the special cameo in it "
+                     "though. I loved the plot line.",
+
+                     "it's intended to make the polling places dangerous by contaminating the air inside with virus "
+                     "that can linger for hours",
+
+                     "simple, just create an unmasked line in a separate part of the location let them infect each "
+                     "other"]
+    get_whole_and_per_sentence_flair_sentiments(long_comments)
+
+
+def add_flair_sentiment_to_csv(input_file_name, output_file_name):
+    """given a file_name.csv of comments with the column name 'body',
+    calculates the whole comment sentiment score and the per sentence sentiment score
+    and appends it to a new filename.csv
+    VERY SLOW"""
+
+    df = pd.read_csv(input_file_name)
+    df = df.drop(['Unnamed: 0'], axis=1)
+
+    df['whole_comment_sentiment_flair'] = df['body'].apply(get_whole_flair_sentiment)
+    df['per_sentence_sentiment_flair'] = df['body'].apply(get_sentence_sentiments)
+
+    df.to_csv(output_file_name)
+
+
+def run_add_flair_sentiment_to_csv():
+    """runs the add_flair_sentiment_to_csv() with politics_past_30_months_comments_cleaned_standardized_vader.csv
+    and politics_past_30_months_comments_cleaned_standardized_vader_flair.csv"""
+    add_flair_sentiment_to_csv('politics_past_30_months_comments_cleaned_standardized_vader.csv',
+                               'politics_past_30_months_comments_cleaned_standardized_vader_flair.csv')
+
+
+def get_comment_information_by_id(comment_id):
+    """prints out whats available to a reddit comment by comment id"""
+    comment = REDDIT.comment(comment_id)
+    print(comment.body)
+    print(vars(comment))
+
+
+def test_get_comment_information_by_id():
+    """tests get_comment_information_by_id() with a sample comment id"""
+    get_comment_information_by_id('g99c7c0')
+
+
+def get_specific_comment_info(comment_id):
+    """Given a comment id, read in the comment using praw and extracts,
+    created_utc
+    permalink
+    score
+    link_id"""
+    start = time.time()
+
+    comment = REDDIT.comment(comment_id)
+
+    end = time.time()
+    print(end - start)
+    return comment.created_utc, comment.permalink, comment.score, comment.link_id
+
+
+def test_get_specific_comment_info():
+    """tests get_specific_comment_info() with a sample reddit comment id"""
+    a, b, c, d = get_specific_comment_info('g99c7c0')
+    print('time created:', a, 'type:', type(a))
+    print('permalink:', b, 'type:', type(b))
+    print('karma score:', c, 'type:', type(c))
+    print('submission id:', d, 'type:', type(d))
+
+
+def add_time_created_permalink_karma_submission_id(input_file_name, output_file_name):
+    """reads in a csv file and based on 'comment_id' value, adds the return values from
+     get_specific_comment_info() to new columns"""
+
+    df = pd.read_csv(input_file_name)
+    df = df.drop(['Unnamed: 0'], axis=1)
+
+    df['created_utc'], df['permalink'], df['score'], df['link_id'] = df['comment_id'].apply(get_specific_comment_info)
+
+    df.to_csv(output_file_name)
+
+
+def run_add_time_created_permalink_karma_submission_id():
+    """runs the add_time_created_permalink_karma_submission_id() function with
+    politics_past_30_months_comments_cleaned_standardized_vader_flair.csv
+    politics_past_30_months_comments_cleaned_standardized_vader_flair_info.csv"""
+    add_time_created_permalink_karma_submission_id('politics_past_30_months_comments_cleaned_standardized_vader_flair'
+                                                   '.csv',
+                                                   'politics_past_30_months_comments_cleaned_standardized_vader_flair'
+                                                   '_info.csv')
+
+
 # test_get_comments()
 # test_get_submissions()
 # test_get_comments_from_submission()
@@ -594,5 +799,12 @@ def test_get_sentence_sentiments():
 # run_add_vader_sentiment_scores()
 # test_get_tone_from_IBM()
 # test_make_sentences()
-test_get_whole_flair_sentiment()
-test_get_sentence_sentiments()
+# test_get_whole_flair_sentiment()
+# test_get_sentence_sentiments()
+# test_get_whole_and_per_sentence_flair_sentiments()
+# run_add_flair_sentiment_to_csv()
+# test_get_comment_information_by_id()
+# test_get_specific_comment_info()
+# run_add_time_created_permalink_karma_submission_id()
+test_get_tone_from_api_and_return_columns()
+run_add_tone_columns_to_csv()
