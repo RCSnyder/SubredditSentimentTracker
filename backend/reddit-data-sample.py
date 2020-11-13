@@ -21,7 +21,6 @@ from ibm_watson import ApiException
 import flair
 from segtok.segmenter import split_single
 
-
 flair_sentiment = flair.models.TextClassifier.load('en-sentiment')
 # nltk.download('vader_lexicon')
 
@@ -501,33 +500,34 @@ def test_get_tone_from_IBM():
     get_tone_from_IBM(comments[0])
 
 
-def get_flair_sentiment(comment):
-    """gets the sentiment scores on a comment using flair"""
+def get_whole_flair_sentiment(comment):
+    """given a comment body, gets the sentiment score on the entire comment.
+       returns the whole_comment_sentiment score"""
 
-    for c in comment:
-        text = flair.data.Sentence(c)
-        flair_sentiment.predict(text)
-        value = text.labels[0].to_dict()['value']
-        print(text.labels)
-        print(value)
-        if value == 'POSITIVE':
-            result = text.to_dict()['labels'][0]['confidence']
-        else:
-            result = -(text.to_dict()['labels'][0]['confidence'])
+    text = flair.data.Sentence(comment)
+    flair_sentiment.predict(text)
+    value = text.labels[0].to_dict()['value']
+    if value == 'POSITIVE':
+        whole_comment_sentiment = text.to_dict()['labels'][0]['confidence']
+    else:
+        whole_comment_sentiment = -(text.to_dict()['labels'][0]['confidence'])
 
-        result = round(result, 5)
+    whole_comment_sentiment = round(whole_comment_sentiment, 6)
 
-        print(result)
+    return whole_comment_sentiment
+
+
+def test_get_whole_flair_sentiment():
+    """runs get_flair_sentiment with a test comment list and prints the results and results_sum"""
+
+    comments = ["This was a really sucky movie. I will probably never go see this movie ever again. I am going to "
+                "tell my whole family never to watch this movie. I very much enjoyed the special cameo in it "
+                "though. I loved the plot line."]
+    for x in comments:
+        result_sum = get_whole_flair_sentiment(x)
+        print(x)
+        print('Whole comment sentiment:', result_sum)
         print()
-
-
-def test_get_flair_sentiment():
-    """runs get_flair_sentiment witha  test comment and prints the result"""
-    comments = ['I think this movie was really good and will go and see it again.',
-                'This movie really sucked and I hated it',
-                'I think this movie was really good and will go and see it again.'
-                'This movie really sucked and I hated it']
-    get_flair_sentiment(comments)
 
 
 def make_sentences(comment):
@@ -543,6 +543,38 @@ def test_make_sentences():
     new_sentences = make_sentences(long_comment[0])
     print(new_sentences)
 
+
+def get_sentence_sentiments(comment):
+    """given a comment, splits the comment into sentences and returns the list of sentiment scores"""
+    sentence_score_list = []
+
+    split_comment = make_sentences(comment)
+    for sentence in split_comment:
+        text = flair.data.Sentence(sentence)
+        flair_sentiment.predict(text)
+
+        value = text.labels[0].to_dict()['value']
+        if value == 'POSITIVE':
+            result = text.to_dict()['labels'][0]['confidence']
+        else:
+            result = -(text.to_dict()['labels'][0]['confidence'])
+
+        sentence_score = round(result, 6)
+        sentence_score_list.append(sentence_score)
+
+    return sentence_score_list
+
+
+def test_get_sentence_sentiments():
+    """tests the get_sentence_sentiments() function"""
+    long_comment = ["This was a really sucky movie. I will probably never go see this movie ever again. I am going to "
+                    "tell my whole family never to watch this movie. I very much enjoyed the special cameo in it "
+                    "though. I loved the plot line."]
+
+    sentence_score_list = get_sentence_sentiments(long_comment[0])
+    print(long_comment[0])
+    print('per sentence sentiment:', sentence_score_list)
+    print()
 
 # test_get_comments()
 # test_get_submissions()
@@ -561,5 +593,6 @@ def test_make_sentences():
 # run_standardize_comments()
 # run_add_vader_sentiment_scores()
 # test_get_tone_from_IBM()
-# test_get_flair_sentiment()
-test_make_sentences()
+# test_make_sentences()
+test_get_whole_flair_sentiment()
+test_get_sentence_sentiments()
