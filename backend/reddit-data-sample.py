@@ -580,7 +580,6 @@ def add_tone_columns_to_csv(input_file_name, output_file_name):
     df = pd.read_csv(input_file_name)
     df = df.drop(['Unnamed: 0'], axis=1)
 
-    # df['anger'], df['fear'], df['joy'], df['sadness'], df['analytical'], df['confident'], df['tentative']
     df[['anger', 'fear', 'joy', 'sadness', 'analytical', 'confident', 'tentative']] = \
         pd.DataFrame(df['body'].apply(get_tone_from_api_and_return_columns).tolist())
 
@@ -592,6 +591,14 @@ def run_add_tone_columns_to_csv():
     'test_data_for_tone.csv'
     'test_data_for_tone_added.csv'"""
     add_tone_columns_to_csv('test_data_for_tone.csv', 'test_data_for_tone_added.csv')
+
+
+def run_add_ibm_tones():
+    """adds the tones from
+    'politics_past_30_months_comments_cleaned_standardized_vader_flair.csv'
+    'politics_past_30_months_comments_cleaned_standardized_vader_flair_tones.csv'"""
+    add_tone_columns_to_csv('politics_past_30_months_comments_cleaned_standardized_vader_flair.csv',
+                            'politics_past_30_months_comments_cleaned_standardized_vader_flair_tones.csv')
 
 
 def get_whole_flair_sentiment(comment):
@@ -806,5 +813,5 @@ def run_add_time_created_permalink_karma_submission_id():
 # test_get_comment_information_by_id()
 # test_get_specific_comment_info()
 # run_add_time_created_permalink_karma_submission_id()
-test_get_tone_from_api_and_return_columns()
-run_add_tone_columns_to_csv()
+# test_get_tone_from_api_and_return_columns()
+# run_add_tone_columns_to_csv()
