@@ -852,7 +852,7 @@ def build_comment_database_pipeline(subreddit, max):
     add_flair_sentiment_to_csv(vader_file_name + '.csv', flair_file_name + '.csv')
 
     # add ibm tones
-    add_tone_columns_to_csv(flair_file_name + '.csv', ibm_tone_file_name + '.csv')
+    # add_tone_columns_to_csv(flair_file_name + '.csv', ibm_tone_file_name + '.csv')
 
 
 def run_build_comment_database_pipeline():
