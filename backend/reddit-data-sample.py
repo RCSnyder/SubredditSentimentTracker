@@ -51,6 +51,9 @@ API = PushshiftAPI()
 IBM_API = "ch7dMr1nkRWOKvNo_fw4exPB5CdeOAqvMsCjxxROa4up"
 IBM_URL = "https://api.us-south.tone-analyzer.watson.cloud.ibm.com/instances/259eb6a9-2ccd-4a2b-aa91-6a233298d4ea"
 
+# ADD IN SPECIFIC IBM API KEY AND INSTANCE URL
+# IBM_API = ""
+# IBM_URL = ""
 
 authenticator = IAMAuthenticator(IBM_API)
 TONE_ANALYZER = ToneAnalyzerV3(
@@ -867,10 +870,34 @@ def test_build_comment_database_pipeline():
 
 
 def run_once_tones_to_csv():
-    """adds hte tones to csv file politics_30_months_comments_cleaned_standardized_vader_flair.csv
+    """adds the tones to csv file politics_30_months_comments_cleaned_standardized_vader_flair.csv
     output politics_30_months_comments_cleaned_standardized_vader_flair_tones.csv"""
     add_tone_columns_to_csv('politics_30_months_comments_cleaned_standardized_vader_flair.csv',
                             'politics_30_months_comments_cleaned_standardized_vader_flair_tones.csv')
+
+
+def get_15k_row_subset(input_file_name, output_file_name):
+    """given a .csv file, random samples 15k rows and saves it to the output_file_name"""
+    df = pd.read_csv(input_file_name)
+    df = df.drop(['Unnamed: 0'], axis=1)
+
+    df_sample = df.sample(n=15000, replace=False).copy()
+
+    df_sample.to_csv(output_file_name)
+
+
+def run_get_15k_row_subset():
+    """runs get_15k_row_subset() on
+    politics_30_months_comments_cleaned_standardized_vader_flair.csv
+    politics_30_months_comments_cleaned_standardized_vader_flair_15k"""
+    get_15k_row_subset('politics_30_months_comments_cleaned_standardized_vader_flair.csv',
+                       'politics_30_months_comments_cleaned_standardized_vader_flair_15k.csv')
+
+
+def run_get_tones_for_15k_subset():
+    """calls the ibm api and appends the tone data to the csv output"""
+    add_tone_columns_to_csv('politics_30_months_comments_cleaned_standardized_vader_flair_15k.csv',
+                            'politics_30_months_comments_cleaned_standardized_vader_flair_15k_tones.csv')
 
 
 # test_get_comments()
@@ -903,3 +930,5 @@ def run_once_tones_to_csv():
 # test_build_comment_database_pipeline()
 # run_build_comment_database_pipeline()
 # run_once_tones_to_csv()
+# run_get_15k_row_subset()
+run_get_tones_for_15k_subset()
