@@ -893,4 +893,5 @@ def test_build_comment_database_pipeline():
 # run_add_time_created_permalink_karma_submission_id()
 # test_get_tone_from_api_and_return_columns()
 # run_add_tone_columns_to_csv()
-test_build_comment_database_pipeline()
+# test_build_comment_database_pipeline()
+run_build_comment_database_pipeline()
