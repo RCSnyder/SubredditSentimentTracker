@@ -248,3 +248,11 @@ backend/politics_past_30_months_comments.csv
 /backend/politics_past_30_months_comments_cleaned.csv
 /backend/politics_past_30_months_comments_cleaned_standardized.csv
 /backend/politics_past_30_months_comments_cleaned_standardized_vader_flair.csv
+/backend/politics_30_months_comments.csv
+/backend/politics_30_months_comments_cleaned.csv
+/backend/politics_30_months_comments_cleaned_standardized.csv
+/backend/politics_30_months_comments_cleaned_standardized_vader.csv
+/backend/politics_30_months_comments_cleaned_standardized_vader_flair.csv
+/backend/test_data_for_tone.csv
+/backend/test_data_for_tone_added.csv
+/backend/test_data_for_tone_tones_added.csv

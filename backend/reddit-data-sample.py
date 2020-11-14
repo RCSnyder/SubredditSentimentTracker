@@ -47,13 +47,9 @@ REDDIT = praw.Reddit(client_id=CLIENT_ID, client_secret=CLIENT_SECRET,
 
 API = PushshiftAPI()
 
-IBM_API_KEY = "OfhB70w2GIjB99k6zAF_k-ezpWK1evbmG0zk9Mfs35_v"
-
-# IBM_API = "ch7dMr1nkRWOKvNo_fw4exPB5CdeOAqvMsCjxxROa4up"
-# IBM_URL = "https://api.us-south.tone-analyzer.watson.cloud.ibm.com/instances/259eb6a9-2ccd-4a2b-aa91-6a233298d4ea"
-
-IBM_API = "uO3gL_5CbOVUwp1etrRm-gofAPfInOntzgtXYnIkFTfI"
-IBM_URL = "https://api.us-south.tone-analyzer.watson.cloud.ibm.com/instances/7a458da6-58eb-4bc2-853a-ff2cf25aa594/v3/tone?version=2017-09-21"
+# lite version 2500 max calls
+IBM_API = "ch7dMr1nkRWOKvNo_fw4exPB5CdeOAqvMsCjxxROa4up"
+IBM_URL = "https://api.us-south.tone-analyzer.watson.cloud.ibm.com/instances/259eb6a9-2ccd-4a2b-aa91-6a233298d4ea"
 
 
 authenticator = IAMAuthenticator(IBM_API)
@@ -579,9 +575,13 @@ def test_get_tone_from_IBM():
 
 
 def get_tone_from_api_and_return_columns(comment):
-    """given a comment, calls the IBM tone api and returns the column values"""
-    tone_dict = get_tone_from_IBM(comment)
-    return get_columns_from_IBM_tone(tone_dict)
+    """given a comment, calls the IBM tone api and returns the column values.
+    Continues to retry if it gets None back from API"""
+    tone_dict = None
+    while tone_dict is None:
+        tone_dict = get_tone_from_IBM(comment)
+        if tone_dict is not None:
+            return get_columns_from_IBM_tone(tone_dict)
 
 
 def test_get_tone_from_api_and_return_columns():
@@ -856,7 +856,7 @@ def build_comment_database_pipeline(subreddit, max):
 
 
 def run_build_comment_database_pipeline():
-    sub_reddits = ['politics', 'askreddit', 'funny']#, 'gaming', 'aww', 'pics', 'worldnews']
+    sub_reddits = ['askreddit', 'funny']  # , 'gaming', 'aww', 'pics', 'worldnews']
     for sr in sub_reddits:
         build_comment_database_pipeline(sr, 100)
 
@@ -864,6 +864,13 @@ def run_build_comment_database_pipeline():
 def test_build_comment_database_pipeline():
     """runs the full pipeline with just 1 as the max submissions"""
     build_comment_database_pipeline('politics', 1)
+
+
+def run_once_tones_to_csv():
+    """adds hte tones to csv file politics_30_months_comments_cleaned_standardized_vader_flair.csv
+    output politics_30_months_comments_cleaned_standardized_vader_flair_tones.csv"""
+    add_tone_columns_to_csv('politics_30_months_comments_cleaned_standardized_vader_flair.csv',
+                            'politics_30_months_comments_cleaned_standardized_vader_flair_tones.csv')
 
 
 # test_get_comments()
@@ -894,4 +901,5 @@ def test_build_comment_database_pipeline():
 # test_get_tone_from_api_and_return_columns()
 # run_add_tone_columns_to_csv()
 # test_build_comment_database_pipeline()
-run_build_comment_database_pipeline()
+# run_build_comment_database_pipeline()
+# run_once_tones_to_csv()
