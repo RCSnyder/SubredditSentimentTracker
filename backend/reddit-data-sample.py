@@ -48,8 +48,13 @@ REDDIT = praw.Reddit(client_id=CLIENT_ID, client_secret=CLIENT_SECRET,
 API = PushshiftAPI()
 
 IBM_API_KEY = "OfhB70w2GIjB99k6zAF_k-ezpWK1evbmG0zk9Mfs35_v"
-IBM_API = "ch7dMr1nkRWOKvNo_fw4exPB5CdeOAqvMsCjxxROa4up"
-IBM_URL = "https://api.us-south.tone-analyzer.watson.cloud.ibm.com/instances/259eb6a9-2ccd-4a2b-aa91-6a233298d4ea"
+
+# IBM_API = "ch7dMr1nkRWOKvNo_fw4exPB5CdeOAqvMsCjxxROa4up"
+# IBM_URL = "https://api.us-south.tone-analyzer.watson.cloud.ibm.com/instances/259eb6a9-2ccd-4a2b-aa91-6a233298d4ea"
+
+IBM_API = "uO3gL_5CbOVUwp1etrRm-gofAPfInOntzgtXYnIkFTfI"
+IBM_URL = "https://api.us-south.tone-analyzer.watson.cloud.ibm.com/instances/7a458da6-58eb-4bc2-853a-ff2cf25aa594/v3/tone?version=2017-09-21"
+
 
 authenticator = IAMAuthenticator(IBM_API)
 TONE_ANALYZER = ToneAnalyzerV3(
@@ -62,10 +67,9 @@ TONE_ANALYZER.set_service_url(IBM_URL)
 def get_historical_submissions(subreddit, limit):
     """returns a list of submission dictionaries from the past 30 months,
         querying a random 4 hour chunk in a random day of each month"""
-    past_30_months = [10, 9, 8, 7]
-                      #, 6, 5, 4, 3, 2, 1
-                      #12, 11, 10, 9, 8, 7, 6, 5, 4, 3,
-                      #2, 1, 12, 11, 10, 9, 8, 7, 6, 5
+    past_30_months = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
+                      12, 11, 10, 9, 8, 7, 6, 5, 4, 3,
+                      2, 1, 12, 11, 10, 9, 8, 7, 6, 5]
 
     all_submissions = []
     day = 0
@@ -852,9 +856,9 @@ def build_comment_database_pipeline(subreddit, max):
 
 
 def run_build_comment_database_pipeline():
-    sub_reddits = ['politics', 'askreddit', 'funny', 'gaming', 'aww', 'pics', 'worldnews']
+    sub_reddits = ['politics', 'askreddit', 'funny']#, 'gaming', 'aww', 'pics', 'worldnews']
     for sr in sub_reddits:
-        build_comment_database_pipeline(sr)
+        build_comment_database_pipeline(sr, 100)
 
 
 def test_build_comment_database_pipeline():
