@@ -38,7 +38,7 @@ PASSWORD = 'Nolimit08212013'
 USERAGENT = 'sentiment analysis script by /u/DentonPokerEnthusist'
 USERNAME = 'DentonPokerEnthusist'
 
-random.seed(hash('setting random seeds') % 2 ** 32 - 1)
+random.seed(hash('setting random seedsy') % 2 ** 32 - 1)
 np.random.seed(hash('improves reproducibility') % 2 ** 32 - 1)
 
 REDDIT = praw.Reddit(client_id=CLIENT_ID, client_secret=CLIENT_SECRET,
@@ -62,9 +62,11 @@ TONE_ANALYZER.set_service_url(IBM_URL)
 def get_historical_submissions(subreddit, limit):
     """returns a list of submission dictionaries from the past 30 months,
         querying a random 4 hour chunk in a random day of each month"""
-    past_30_months = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
-                      12, 11, 10, 9, 8, 7, 6, 5, 4, 3,
-                      2, 1, 12, 11, 10, 9, 8, 7, 6, 5]
+    past_30_months = [10, 9, 8, 7]
+                      #, 6, 5, 4, 3, 2, 1
+                      #12, 11, 10, 9, 8, 7, 6, 5, 4, 3,
+                      #2, 1, 12, 11, 10, 9, 8, 7, 6, 5
+
     all_submissions = []
     day = 0
     year = 2020
@@ -130,11 +132,14 @@ def save_historical_submission_comments(list_of_dictionary_submissions, file_nam
 
         submission.comments.replace_more(limit=None)
         for comment in submission.comments.list():
-            temp_dict = {'body': comment.body, 'comment_id': comment}
+            temp_dict = {'body': comment.body, 'comment_id': comment, 'author': comment.author,
+                         'created_utc': comment.created_utc, 'permalink': comment.permalink,
+                         'link_id': comment.link_id, 'score': comment.score}
             all_comments_list.append(temp_dict)
         print('total comments: ', len(all_comments_list))
 
-    comments_df = pd.DataFrame(all_comments_list, columns=['body', 'comment_id'])
+    comments_df = pd.DataFrame(all_comments_list, columns=['body', 'comment_id', 'author', 'created_utc',
+                                                           'permalink', 'link_id', 'score'])
 
     print(comments_df)
 
@@ -465,6 +470,22 @@ def run_standardize_comments():
     standardized_df.to_csv('politics_past_30_months_comments_cleaned_standardized.csv')
 
 
+def generic_run_standardize_comments(raw_input_file, clean_output_file):
+    """generically runs standardize comments function and saves it into a new file"""
+    df = pd.read_csv(raw_input_file)
+    df = df.drop(['Unnamed: 0'], axis=1)
+
+    standardized_df = standardize_comments(df, 'body')
+    print(standardized_df.head())
+    print()
+    print('original length:', len(df))
+    print('standardized length:', len(standardized_df))
+    print('removed', len(df) - len(standardized_df), 'comments')
+
+    # THIS MIGHT BRING BACK THE UTF-8 ENCODING EMOJIS. MIGHT HAVE TO WRITE TO CSV IN ASCII
+    standardized_df.to_csv(clean_output_file)
+
+
 def add_vader_sentiment_scores(df):
     """given a dataframe with 'body' as the column name for comment bodies
        calculates the nltk vader sentiment scores and adds them to
@@ -486,6 +507,15 @@ def run_add_vader_sentiment_scores():
     df = df.drop(['Unnamed: 0'], axis=1)
     scores_df = add_vader_sentiment_scores(df)
     scores_df.to_csv('politics_past_30_months_comments_cleaned_standardized_vader.csv')
+
+
+def generic_run_vader_sentiment_scores(raw_input_file, clean_output_file):
+    """generically runs add_vader_sentiment_scores"""
+    df = pd.read_csv(raw_input_file, encoding='utf-8')
+    df = df.drop(['Unnamed: 0'], axis=1)
+
+    scores_df = add_vader_sentiment_scores(df)
+    scores_df.to_csv(clean_output_file)
 
 
 def get_tone_from_IBM(comment):
@@ -788,6 +818,50 @@ def run_add_time_created_permalink_karma_submission_id():
                                                    '_info.csv')
 
 
+def build_comment_database_pipeline(subreddit, max):
+    """given a list subreddits, extracts historical data, sanitize characters, standardize comments,
+     add vader sentiment scores, adds flair sentiment scores, gets ibm tone"""
+    data_file_name = subreddit + '_30_months_comments'
+    cleaned_file_name = data_file_name + '_cleaned'
+    standardized_file_name = cleaned_file_name + '_standardized'
+    vader_file_name = standardized_file_name + '_vader'
+    flair_file_name = vader_file_name + '_flair'
+    ibm_tone_file_name = flair_file_name + '_tones'
+
+    # get historical data
+    comment_data = get_historical_submissions(subreddit, max)
+
+    # save to csv
+    save_historical_submission_comments(comment_data, data_file_name + '.csv')
+
+    # sanitize characters
+    print('sanitizing characters')
+    sanitize_characters(data_file_name + '.csv', cleaned_file_name + '.csv')
+
+    # standardize comments
+    generic_run_standardize_comments(cleaned_file_name + '.csv', standardized_file_name + '.csv')
+
+    # add vader sentiment scores
+    generic_run_vader_sentiment_scores(standardized_file_name + '.csv', vader_file_name + '.csv')
+
+    # add flair sentiment score
+    add_flair_sentiment_to_csv(vader_file_name + '.csv', flair_file_name + '.csv')
+
+    # add ibm tones
+    add_tone_columns_to_csv(flair_file_name + '.csv', ibm_tone_file_name + '.csv')
+
+
+def run_build_comment_database_pipeline():
+    sub_reddits = ['politics', 'askreddit', 'funny', 'gaming', 'aww', 'pics', 'worldnews']
+    for sr in sub_reddits:
+        build_comment_database_pipeline(sr)
+
+
+def test_build_comment_database_pipeline():
+    """runs the full pipeline with just 1 as the max submissions"""
+    build_comment_database_pipeline('politics', 1)
+
+
 # test_get_comments()
 # test_get_submissions()
 # test_get_comments_from_submission()
@@ -815,3 +889,4 @@ def run_add_time_created_permalink_karma_submission_id():
 # run_add_time_created_permalink_karma_submission_id()
 # test_get_tone_from_api_and_return_columns()
 # run_add_tone_columns_to_csv()
+test_build_comment_database_pipeline()
