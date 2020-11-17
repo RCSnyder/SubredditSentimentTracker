@@ -20,6 +20,11 @@ from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 from ibm_watson import ApiException
 import flair
 from segtok.segmenter import split_single
+import matplotlib.pyplot as plt
+from matplotlib.dates import (YEARLY, DateFormatter, rrulewrapper, RRuleLocator, drange)
+import matplotlib.dates as mdate
+import plotly.express as px
+import plotly.graph_objects as go
 
 flair_sentiment = flair.models.TextClassifier.load('en-sentiment')
 # nltk.download('vader_lexicon')
@@ -30,6 +35,7 @@ TEST_END_DATE = int(dt.datetime(2020, 11, 2, 0, 0).timestamp())
 TEST_MAX = 100
 MIN_COMMENTS = 500
 TEST_SUBREDDIT = 'politics'
+SAVE_DIR = "D:/subredditscrape/"
 
 # PRAW OAuth stuff
 CLIENT_ID = 'kdM81oo03fgHdQ'
@@ -37,6 +43,8 @@ CLIENT_SECRET = 'MSsQk9IBTimxRRMA0AZd2hxIpIS__w'
 PASSWORD = 'Nolimit08212013'
 USERAGENT = 'sentiment analysis script by /u/DentonPokerEnthusist'
 USERNAME = 'DentonPokerEnthusist'
+
+HISTOGRAM_SAVE_DIR = "C:/Users/Cooper/Documents/GitHub/SubredditSentimentTracker/backend/"
 
 random.seed(hash('setting random seedsy') % 2 ** 32 - 1)
 np.random.seed(hash('improves reproducibility') % 2 ** 32 - 1)
@@ -107,6 +115,39 @@ def get_historical_submissions(subreddit, limit):
             all_submissions.append(item.d_)
 
         print('querying month:', hacky_year_flag)
+        print('total submissions:', len(all_submissions))
+
+    return all_submissions
+
+
+def get_november_historical_comments(subreddit, limit):
+    """given a subreddit and limit gets the first 100 submissions in two consecutive 4 hour chunks """
+    all_submissions = []
+
+    days = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+    month = 11
+    year = 2020
+
+    for day in days:
+        # generate random 4 hour time chunk
+        start_hour = random.randint(0, 14)
+        end_hour = start_hour + 4
+        start_time = int(dt.datetime(year, month, day, start_hour, 0).timestamp())
+        end_time = int(dt.datetime(year, month, day, end_hour, 0).timestamp())
+
+        # gets submissions and adds submission dictionary to master list
+        threads = list(get_submissions(subreddit, start_time, end_time, limit))
+
+        for item in threads:
+            all_submissions.append(item.d_)
+
+        # gets submissions and adds submission dictionary to master list
+        threads = list(get_submissions(subreddit, start_time + 5, end_time + 5, limit))
+
+        for item in threads:
+            all_submissions.append(item.d_)
+
+        print('querying day:', day)
         print('total submissions:', len(all_submissions))
 
     return all_submissions
@@ -414,22 +455,16 @@ def standardize_comments(df, column_name):
     """standardizes the comment bodies for sentiment analysis and tone analysis can be performed """
     # create a copy of the dataframe
     df_copy = df.copy()
-
     # remove rows that contain '[deleted]' or '[removed]' in the comment body
     df_copy = df_copy[(df[column_name] != '[removed]') & (df[column_name] != '[deleted]')]
-
     # remove rows with null values
     df_copy.dropna(inplace=True)
-
     # remove rows with the bot comment that starts with "Register to vote"
     df_copy = df_copy[~df_copy[column_name].str.startswith('Register to vote')]
-
     # remove rows with 'Thank you for participating in /r/Politics' in the body
     df_copy = df_copy[~df_copy[column_name].str.contains('Thank you for participating in /r/Politics')]
-
     # remove rows that contain 'I am a bot' in the comment body
     df_copy = df_copy[~df_copy[column_name].str.contains('I am a bot')]
-
     # replace characters in comment bodies
     df_copy[column_name] = df_copy[column_name].str.replace(r"http\S+", "")
     df_copy[column_name] = df_copy[column_name].str.replace(r"http", "")
@@ -442,18 +477,10 @@ def standardize_comments(df, column_name):
     df_copy[column_name] = df_copy[column_name].str.replace("\"", "")
     df_copy[column_name] = df_copy[column_name].str.replace(r"@", "at")
     df_copy[column_name] = df_copy[column_name].str.lower()
-
     # remove rows with empty comment strings
     df_copy = df_copy[df_copy[column_name] != '']
-
     # remove rows with comment strings containing only a space
     df_copy = df_copy[df_copy[column_name] != ' ']
-
-    # needs to figure out a way to get rid of this pattern of linking in comment bodies
-    #  [your submission](https://redd.it/jdn4dx)
-    #  [Dripping with money: A look behind the gated affluence of Trumps Palm Beach](https://redd.it/jdn4dx)
-    #  [No Queue Flooding](https://www.reddit.com/r/politics/wiki/index#wiki_do_not_flood_the_new_queue.)
-
     return df_copy
 
 
@@ -641,17 +668,23 @@ def run_add_ibm_tones():
 def get_whole_flair_sentiment(comment):
     """given a comment body, gets the sentiment score on the entire comment.
        returns the whole_comment_sentiment score"""
+    # print(comment[:int(len(comment) * .2)])
     text = flair.data.Sentence(comment)
+    # print('before predict',len(text.labels), text.labels)
     flair_sentiment.predict(text)
-    value = text.labels[0].to_dict()['value']
-    if value == 'POSITIVE':
-        whole_comment_sentiment = text.to_dict()['labels'][0]['confidence']
+    # print('after predict',len(text.labels), text.labels)
+    if len(text.labels) == 1:
+        value = text.labels[0].to_dict()['value']
+        if value == 'POSITIVE':
+            whole_comment_sentiment = text.to_dict()['labels'][0]['confidence']
+        else:
+            whole_comment_sentiment = -(text.to_dict()['labels'][0]['confidence'])
+
+        whole_comment_sentiment = round(whole_comment_sentiment, 6)
+
+        return whole_comment_sentiment
     else:
-        whole_comment_sentiment = -(text.to_dict()['labels'][0]['confidence'])
-
-    whole_comment_sentiment = round(whole_comment_sentiment, 6)
-
-    return whole_comment_sentiment
+        return 0
 
 
 def test_get_whole_flair_sentiment():
@@ -859,7 +892,7 @@ def build_comment_database_pipeline(subreddit, max):
 
 
 def run_build_comment_database_pipeline():
-    sub_reddits = ['askreddit', 'funny']  # , 'gaming', 'aww', 'pics', 'worldnews']
+    sub_reddits = ['roastme', 'toastme', 'neutralnews', 'movies']
     for sr in sub_reddits:
         build_comment_database_pipeline(sr, 100)
 
@@ -900,6 +933,560 @@ def run_get_tones_for_15k_subset():
                             'politics_30_months_comments_cleaned_standardized_vader_flair_15k_tones.csv')
 
 
+def get_df_from_csv(input_file_name):
+    """given a .csv file returns the dataframe"""
+    df = pd.read_csv(input_file_name)
+    df = df.drop(['Unnamed: 0'], axis=1)
+    return df
+
+
+def test_get_df_from_csv():
+    """tests the get_df_from_csv() function"""
+    df = get_df_from_csv('politics_30_months_comments_cleaned_standardized_vader_flair.csv')
+    print(df.head())
+
+
+def print_rolling_average_of_sentiment_scores(input_file_name, window_size):
+    """given a .csv file prints the rolling averages of all sentiment scores"""
+
+    subreddit_name = input_file_name.split('_')[0]
+    # maybe set window size to average number of rows per link_id to get a better idea of per submission scores
+
+    list_of_columns_to_be_graphed = ['vader_compound_score', 'vader_negative_score', 'vader_neutral_score',
+                                     'vader_positive_score', 'whole_comment_sentiment_flair']
+
+    # gets the dataframe
+    df = get_df_from_csv(input_file_name)
+
+    # creates date object column for matplotlib
+    df['date'] = df['created_utc'].apply(lambda x: mdate.epoch2num(x))
+
+    # sorts df according to created_utc
+    df = df.sort_values(by=['date'])
+
+    # get total number of comments
+    num_comments = len(df)
+
+    # formats the date to 2020-12-30-23-59-59
+    date_fmt = '%y-%m-%d'
+
+    # set locator
+    locator = mdate.MonthLocator()
+
+    path_to_save = HISTOGRAM_SAVE_DIR + 'ma_for_comments/' + subreddit_name
+    if not os.path.exists(path_to_save):
+        os.mkdir(path_to_save)
+
+    for column_name in list_of_columns_to_be_graphed:
+
+        # creates moving average of vader_compound_score
+        df['MA_' + column_name] = df[column_name].rolling(window=window_size).mean()
+
+        # gets full average
+        average = df[column_name].mean()
+
+        fig, ax = plt.subplots()
+
+        # plots
+        ax.plot(df['date'], df['MA_' + column_name], label='Moving Average')
+
+        # adds flat red line for average
+        ax.axhline(y=average, color='r', linestyle='--', label='Average')
+
+        # adds legend
+        plt.legend(loc='lower left')
+
+        plt.title('Moving average of ' + column_name + '\nper ' + str(window_size) +
+                  ' comments out of ' + str(num_comments) + ' comments in /r/' + subreddit_name)
+
+        # sets x axis format
+        date_formatter = mdate.DateFormatter(date_fmt)
+        plt.ylim(-1.0000, 1.0000)
+        ax.xaxis.set_major_formatter(date_formatter)
+        ax.xaxis.set_major_locator(locator)
+        # hides every nth x tick
+        for label in ax.xaxis.get_ticklabels()[::2]:
+            label.set_visible(False)
+        fig.autofmt_xdate()
+
+        plt.savefig(path_to_save + '/MA_avg_per_' + str(window_size) + '_' + subreddit_name + '_' + column_name + '.png')
+        plt.show()
+
+
+def test_print_rolling_average_of_sentiment_scores():
+    """runs the print_rolling_average_of_sentiment_scores on
+    'politics_30_months_comments_cleaned_standardized_vader_flair.csv'
+    with window sizes of 10, 100, 500, 1000, 5000, 10000"""
+    # sizes = [10, 100, 500, 1000, 5000, 10000]
+    sizes = [500]
+    for size in sizes:
+        print_rolling_average_of_sentiment_scores('politics_30_months_comments_cleaned_standardized_vader_flair.csv',
+                                                  size)
+
+
+def get_average_of_sentiment_scores(input_file_name):
+    """given a csv file, calculates the average of the columns to be graphed
+     calculates the average sof columns to be graphed and returns it out"""
+
+    subreddit_name = input_file_name.split('_')[0]
+
+    list_of_columns_to_be_graphed = ['vader_compound_score', 'vader_negative_score', 'vader_neutral_score',
+                                     'vader_positive_score', 'whole_comment_sentiment_flair']
+
+    avg_scores = {'avg_vader_compound_score': 0, 'avg_vader_negative_score': 0, 'avg_vader_neutral_score': 0,
+                  'avg_vader_positive_score': 0, 'avg_whole_comment_sentiment_flair': 0}
+
+    # gets the dataframe
+    df = get_df_from_csv(input_file_name)
+
+    # creates date object column for matplotlib
+    df['date'] = df['created_utc'].apply(lambda x: mdate.epoch2num(x))
+
+    # sorts df according to created_utc
+    df = df.sort_values(by=['date'])
+
+    # get total number of comments
+    num_comments = len(df)
+
+    # avg_vader_compound_score = df['vader_compound_score'].mean()
+    # avg_vader_negative_score = df['vader_negative_score'].mean()
+    # avg_vader_neutral_score = df['vader_neutral_score'].mean()
+    # avg_vader_positive_score = df['vader_positive_score'].mean()
+    # avg_whole_comment_sentiment_flair = df['whole_comment_sentiment_flair'].mean()
+
+    for col in list_of_columns_to_be_graphed:
+        # print('Average ' + col + ':', df[col].mean())
+        avg_scores['avg_' + col] = df[col].mean()
+
+    return avg_scores
+
+
+def test_get_average_of_sentiment_scores():
+    """tests graph_average_of_sentiment_scores with
+    politics_30_months_comments_cleaned_standardized_vader_flair.csv"""
+
+    dict_of_avg_scores = get_average_of_sentiment_scores(
+        'politics_30_months_comments_cleaned_standardized_vader_flair.csv')
+    print('average sentiment scores all comments')
+    for key, value in dict_of_avg_scores.items():
+        print(key, value)
+    print()
+
+
+def get_avg_sentiment_scores_on_link_id_df(input_file_name):
+    """given a csv file, gets the average sentiment scores of list_of_columns_to_be_graphed groupedby link_id
+    gets the earliest created_utc comment value pertaining to that link_id"""
+
+    subreddit_name = input_file_name.split('_')[0]
+
+    list_of_columns_to_be_graphed = ['vader_compound_score', 'vader_negative_score', 'vader_neutral_score',
+                                     'vader_positive_score', 'whole_comment_sentiment_flair']
+
+    avg_scores = {'avg_vader_compound_score': 0, 'avg_vader_negative_score': 0, 'avg_vader_neutral_score': 0,
+                  'avg_vader_positive_score': 0, 'avg_whole_comment_sentiment_flair': 0}
+
+    # gets the dataframe
+    df = get_df_from_csv(input_file_name)
+
+    # creates date object column for matplotlib
+    df['date'] = df['created_utc'].apply(lambda x: mdate.epoch2num(x))
+
+    # sorts df according to created_utc
+    df = df.sort_values(by=['date'])
+
+    # get total number of comments
+    num_comments = len(df)
+
+    # print(df['link_id'].nunique())
+
+    df_link_id_group = df.groupby('link_id').agg({'vader_compound_score': ['mean'], 'vader_negative_score': ['mean'],
+                                                  'vader_neutral_score': ['mean'], 'vader_positive_score': ['mean'],
+                                                  'whole_comment_sentiment_flair': ['mean'],
+                                                  'date': ['min']}).copy()
+
+    df_link_id_group.columns = ['avg_vader_compound_score', 'avg_vader_negative_score',
+                                'avg_vader_neutral_score', 'avg_vader_positive_score',
+                                'avg_whole_comment_sentiment_flair', 'date']
+
+    return df_link_id_group
+
+
+def test_get_avg_sentiment_scores_on_link_id_df():
+    """tests get_avg_sentiment_scores_on_link_id() """
+    df = get_avg_sentiment_scores_on_link_id_df('politics_30_months_comments_cleaned_standardized_vader_flair.csv')
+    print(df)
+
+
+def graph_avg_sentiment_score_by_link_id(input_file_name, window_size):
+    """given a csv file name, graph the average sentiment scores of each link_id over time"""
+    df = get_avg_sentiment_scores_on_link_id_df(input_file_name)
+
+    list_of_columns_to_be_graphed = ['avg_vader_compound_score', 'avg_vader_negative_score', 'avg_vader_neutral_score',
+                                     'avg_vader_positive_score', 'avg_whole_comment_sentiment_flair']
+
+    subreddit_name = input_file_name.split('_')[0]
+
+    # sorts df according to created_utc
+    df = df.sort_values(by=['date'])
+
+    # get total number of comments
+    num_submissions = len(df)
+
+    # formats the date to 2020-12-30-23-59-59
+    date_fmt = '%y-%m-%d'
+
+    # set locator
+    locator = mdate.MonthLocator()
+
+    path_to_save = HISTOGRAM_SAVE_DIR + 'ma_for_submissions/' + subreddit_name
+    if not os.path.exists(path_to_save):
+        os.mkdir(path_to_save)
+
+    for column_name in list_of_columns_to_be_graphed:
+
+        # creates moving average of vader_compound_score
+        df['MA_' + column_name] = df[column_name].rolling(window=window_size).mean()
+
+        # gets full average
+        average = df[column_name].mean()
+
+        fig, ax = plt.subplots()
+
+        # plots
+        ax.plot(df['date'], df['MA_' + column_name], label='Moving Average')
+
+        # adds flat red line for average
+        ax.axhline(y=average, color='r', linestyle='--', label='Average')
+
+        # adds legend
+        plt.legend(loc='lower left')
+
+        plt.title('Moving average of ' + column_name + '\nper ' + str(window_size) +
+                  ' submissions out of ' + str(num_submissions) + ' submissions in /r/' + subreddit_name)
+
+        # sets x axis format
+        date_formatter = mdate.DateFormatter(date_fmt)
+        plt.ylim(-1.0000, 1.0000)
+        ax.xaxis.set_major_formatter(date_formatter)
+        ax.xaxis.set_major_locator(locator)
+        # hides every nth x tick
+        for label in ax.xaxis.get_ticklabels()[::2]:
+            label.set_visible(False)
+        fig.autofmt_xdate()
+        plt.savefig(path_to_save + '/MA_avg_per_' + str(window_size) + '_submissions_' + subreddit_name + '_' + column_name + '.png')
+
+        plt.show()
+
+
+def test_graph_avg_sentiment_score_by_link_id():
+    """tests the per link average sentiment graphing"""
+    graph_avg_sentiment_score_by_link_id('politics_30_months_comments_cleaned_standardized_vader_flair.csv', 50)
+
+
+def get_avg_link_sentiment_scores(input_file_name):
+    """given a csv file, returns a dictionary of the average sentiment scores based on link_id"""
+    df = get_avg_sentiment_scores_on_link_id_df(input_file_name)
+
+    list_of_columns_to_be_graphed = ['avg_vader_compound_score', 'avg_vader_negative_score', 'avg_vader_neutral_score',
+                                     'avg_vader_positive_score', 'avg_whole_comment_sentiment_flair']
+
+    avg_scores = {'avg_vader_compound_score': 0, 'avg_vader_negative_score': 0, 'avg_vader_neutral_score': 0,
+                  'avg_vader_positive_score': 0, 'avg_whole_comment_sentiment_flair': 0}
+
+    for col in list_of_columns_to_be_graphed:
+        # print('Average ' + col + ':', df[col].mean())
+        avg_scores[col] = df[col].mean()
+
+    return avg_scores
+
+
+def test_get_avg_link_sentiment_scores():
+    """tests the function get_avg_link_sentiment_scores() with
+    'politics_30_months_comments_cleaned_standardized_vader_flair.csv'"""
+    print('average sentiment values when grouped by link_id')
+    avg_scores = get_avg_link_sentiment_scores('politics_30_months_comments_cleaned_standardized_vader_flair.csv')
+    for key, value in avg_scores.items():
+        print(key, value)
+    print()
+
+
+def graph_histogram_of_sentiment_scores_all_comments(input_file_name):
+    """ given a csv file, print a histogram"""
+    subreddit_name = input_file_name.split('_')[0]
+    # maybe set window size to average number of rows per link_id to get a better idea of per submission scores
+
+    list_of_columns = ['vader_compound_score', 'vader_negative_score', 'vader_neutral_score',
+                       'vader_positive_score', 'whole_comment_sentiment_flair']
+    # colors = ['orange', 'red', 'cyan', 'lime', 'blue']
+
+    # gets the dataframe
+    df = get_df_from_csv(input_file_name)
+    nbins = 100
+
+    # print(df.loc[:, ['vader_compound_score', 'vader_negative_score', 'vader_neutral_score',
+    #                  'vader_positive_score', 'whole_comment_sentiment_flair']])
+
+    #y, x, _ = plt.hist(df.loc[:, ['vader_compound_score', 'vader_negative_score', 'vader_neutral_score',
+    #                              'vader_positive_score', 'whole_comment_sentiment_flair']],
+    #                   20, density=True, color=colors, label=list_of_columns, range=(-1.0000001, 1.0000001),
+    #                   histtype='bar')
+
+    #print(y.max())
+
+    #plt.legend(prop={'size': 10})
+    #plt.title('Histogram of sentiment values for\n' + str(len(df)) + ' comments in /r/' + subreddit_name)
+    #plt.show()
+
+    #fig2 = px.histogram(df, x='vader_compound_score', nbins=100)
+    #fig2.update_layout(bargap=.05)
+    #fig2.update_xaxes(nticks=30)
+    #fig2.show()
+
+    fig3 = go.Figure()
+    fig3.add_trace(go.Histogram(x=df['vader_compound_score'], name='vader_compound_score', nbinsx=nbins))
+    fig3.add_trace(go.Histogram(x=df['vader_negative_score'], name='vader_negative_score', nbinsx=nbins))
+    fig3.add_trace(go.Histogram(x=df['vader_neutral_score'], name='vader_neutral_score', nbinsx=nbins))
+    fig3.add_trace(go.Histogram(x=df['vader_positive_score'], name='vader_positive_score', nbinsx=nbins))
+    fig3.add_trace(go.Histogram(x=df['whole_comment_sentiment_flair'], name='whole_comment_sentiment_flair',
+                                nbinsx=nbins))
+
+    fig3.update_layout(barmode='overlay',
+                       bargap=.05,
+                       title_text='Histogram of sentiment values for\n' +
+                                  str(len(df)) + ' comments in /r/' + subreddit_name + ' from May 2018 to Oct 2020')
+    fig3.update_traces(opacity=0.65)
+    fig3.write_image(HISTOGRAM_SAVE_DIR + "histograms_for_sentiment/"
+                     + subreddit_name + "_30_months_sentiment_by_all_comments.png")
+    fig3.write_html(HISTOGRAM_SAVE_DIR + "histograms_for_sentiment/"
+                    + subreddit_name + "_30_months_sentiment_by_all_comments.html")
+    fig3.show()
+
+
+def test_graph_histogram_of_sentiment_scores_all_comments():
+    """runs graph_histogram_of_sentiment_scores_all_comments() with
+     'politics_30_months_comments_cleaned_standardized_vader_flair.csv'"""
+    graph_histogram_of_sentiment_scores_all_comments('politics_30_months_comments_cleaned_standardized_vader_flair.csv')
+
+
+def graph_histogram_of_sentiment_scores_on_link_ids(input_file_name):
+    """given a csv, prints a histogram of submission scores"""
+    subreddit_name = input_file_name.split('_')[0]
+    df = get_avg_sentiment_scores_on_link_id_df(input_file_name)
+    nbins = 250
+
+    list_of_columns_to_be_graphed = ['avg_vader_compound_score', 'avg_vader_negative_score', 'avg_vader_neutral_score',
+                                     'avg_vader_positive_score', 'avg_whole_comment_sentiment_flair']
+    fig3 = go.Figure()
+    fig3.add_trace(go.Histogram(x=df['avg_vader_compound_score'], name='avg_vader_compound_score', nbinsx=nbins))
+    fig3.add_trace(go.Histogram(x=df['avg_vader_negative_score'], name='avg_vader_negative_score', nbinsx=nbins))
+    fig3.add_trace(go.Histogram(x=df['avg_vader_neutral_score'], name='avg_vader_neutral_score', nbinsx=nbins))
+    fig3.add_trace(go.Histogram(x=df['avg_vader_positive_score'], name='avg_vader_positive_score', nbinsx=nbins))
+    fig3.add_trace(
+        go.Histogram(x=df['avg_whole_comment_sentiment_flair'], name='avg_whole_comment_sentiment_flair', nbinsx=nbins))
+
+    fig3.update_layout(barmode='overlay',
+                       bargap=.05,
+                       title_text='Histogram of sentiment values for\n' +
+                                  str(len(df)) + ' submissions in /r/' + subreddit_name + ' from May 2018 to Oct 2020')
+    fig3.update_traces(opacity=0.65)
+    fig3.write_image(HISTOGRAM_SAVE_DIR + "histograms_for_sentiment/"
+                     + subreddit_name + "_30_months_sentiment_by_submission.png")
+    fig3.write_html(HISTOGRAM_SAVE_DIR + "histograms_for_sentiment/"
+                    + subreddit_name + "_30_months_sentiment_by_submission.html")
+    fig3.show()
+
+
+def test_graph_histogram_of_sentiment_scores_on_link_ids():
+    """runs graph_histogram_of_sentiment_scores_all_comments() with
+     'politics_30_months_comments_cleaned_standardized_vader_flair.csv'"""
+    graph_histogram_of_sentiment_scores_on_link_ids('politics_30_months_comments_cleaned_standardized_vader_flair.csv')
+
+
+def get_most_extreme_comments():
+    """based on statistics, return most deviating comments"""
+    pass
+
+
+def build_pipeline_november_comments(subreddit, limit):
+    """builds a comments csv and sentiment analysis for november"""
+    data_file_name = subreddit + '_november_comments'
+    cleaned_file_name = data_file_name + '_cleaned'
+    standardized_file_name = cleaned_file_name + '_standardized'
+    vader_file_name = standardized_file_name + '_vader'
+    flair_file_name = vader_file_name + '_flair'
+    ibm_tone_file_name = flair_file_name + '_tones'
+
+    # get historical data
+    comment_data = get_november_historical_comments(subreddit, limit)
+
+    # save to csv
+    save_historical_submission_comments(comment_data, data_file_name + '.csv')
+
+    # sanitize characters
+    print('sanitizing characters')
+    sanitize_characters(data_file_name + '.csv', cleaned_file_name + '.csv')
+
+    # standardize comments
+    generic_run_standardize_comments(cleaned_file_name + '.csv', standardized_file_name + '.csv')
+
+    # add vader sentiment scores
+    generic_run_vader_sentiment_scores(standardized_file_name + '.csv', vader_file_name + '.csv')
+
+    # add flair sentiment score
+    add_flair_sentiment_to_csv(vader_file_name + '.csv', flair_file_name + '.csv')
+
+
+def run_build_pipeline_november_comments():
+    """runs the pipeline to get november comments for a subreddit"""
+    build_pipeline_november_comments('politics', 100)
+
+
+def graph_nov_comments():
+    """graphs the november comments"""
+    graph_histogram_of_sentiment_scores_all_comments('politics_november_comments_cleaned_standardized_vader_flair.csv')
+    # graph_histogram_of_sentiment_scores_on_link_ids('politics_november_comments_cleaned_standardized_vader_flair.csv')
+    print_rolling_average_of_sentiment_scores('politics_november_comments_cleaned_standardized_vader_flair.csv', 100)
+    graph_avg_sentiment_score_by_link_id('politics_november_comments_cleaned_standardized_vader_flair.csv', 100)
+
+
+def graph_histogram_by_time(input_file_name):
+    """given a csv, graphs a histogram of the comments based on created_utc or date"""
+    subreddit_name = input_file_name.split('_')[0]
+    df = get_df_from_csv(input_file_name)
+
+    # creates date object column for matplotlib
+    df['date'] = df['created_utc'].map(lambda val: dt.datetime.fromtimestamp(val).strftime('%Y-%m-%d %H:%M:%S'))
+
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(x=df['date'], name='date and time of comments', nbinsx=30))
+
+    fig.update_layout(barmode='overlay', bargap=.05,
+                      title_text='Number of comments sampled per month for\n' +
+                                 str(len(df)) + ' comments in /r/' + subreddit_name + ' from May 2018 to Oct 2020')
+    fig.update_traces(opacity=0.65)
+    fig.write_image(HISTOGRAM_SAVE_DIR + "histograms_for_date_posted/"
+                    + subreddit_name + "_30_months_date_posted_histogram.png")
+    fig.write_html(HISTOGRAM_SAVE_DIR + "histograms_for_date_posted/"
+                   + subreddit_name + "_30_months_date_posted_histogram.html")
+    fig.show()
+
+
+def test_graph_histogram_by_time():
+    """tests graph_histogram_by_time() with a csv file"""
+    graph_histogram_by_time('politics_30_months_comments_cleaned_standardized_vader_flair.csv')
+    graph_histogram_of_sentiment_scores_all_comments('politics_30_months_comments_cleaned_standardized_vader_flair.csv')
+    graph_histogram_of_sentiment_scores_on_link_ids('politics_30_months_comments_cleaned_standardized_vader_flair.csv')
+
+
+def save_graphs_for_all_data():
+    """loops through all of the csv files and runs a particular graph function"""
+    files = ['askreddit_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'aww_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'conservative_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'funny_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'investing_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'movies_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'neoliberal_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'neutralnews_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'plants_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'politics_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'toastme_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'roastme_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'wallstreetbets_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'worldnews_30_months_comments_cleaned_standardized_vader_flair.csv'
+             ]
+
+    for f in files:
+        subreddit_name = f.split('_')[0]
+        print('graphing /r/' + subreddit_name + ' sentiment scores...')
+        graph_histogram_by_time(f)
+        graph_histogram_of_sentiment_scores_all_comments(f)
+        graph_histogram_of_sentiment_scores_on_link_ids(f)
+        print_rolling_average_of_sentiment_scores(f, 350)
+        graph_avg_sentiment_score_by_link_id(f, 50)
+        print('done.')
+        print()
+
+    print('Complete!')
+
+
+def aggregate_average_sentiment_scores_by_subreddit(file_name_list, output_file_name):
+    """given a list of a csv files, gets the average sentiment scores for each comment and each submission.
+    saves schema: 'subreddit',
+     'avg_vader_compound_score_per_comment', 'avg_vader_negative_score_per_comment',
+     'avg_vader_neutral_score_per_comment', 'avg_vader_positive_score_per_comment',
+      'avg_whole_comment_sentiment_flair_per_comment'
+     'avg_vader_compound_score_per_submission', 'avg_vader_negative_score_per_submission',
+      'avg_vader_neutral_score_per_submission', 'avg_vader_positive_score_per_submission',
+       'avg_whole_comment_sentiment_flair_per_submission''"""
+    list_of_subreddit_dictionaries = []
+    data_dict = {}
+
+    for file_name in file_name_list:
+        subreddit_name = file_name.split('_')[0]
+
+        submission_dict = get_avg_link_sentiment_scores(file_name)
+        comments_dict = get_average_of_sentiment_scores(file_name)
+
+        print('subreddit: ', subreddit_name)
+        print('submissions:', submission_dict)
+        print('comments:', comments_dict)
+
+        temp_dict = {'subreddit': subreddit_name,
+                     'avg_vader_compound_score_per_comment': comments_dict['avg_vader_compound_score'],
+                     'avg_vader_negative_score_per_comment': comments_dict['avg_vader_negative_score'],
+                     'avg_vader_neutral_score_per_comment': comments_dict['avg_vader_neutral_score'],
+                     'avg_vader_positive_score_per_comment': comments_dict['avg_vader_positive_score'],
+                     'avg_whole_comment_sentiment_flair_per_comment':
+                         comments_dict['avg_whole_comment_sentiment_flair'],
+                     'avg_vader_compound_score_per_submission': submission_dict['avg_vader_compound_score'],
+                     'avg_vader_negative_score_per_submission': submission_dict['avg_vader_negative_score'],
+                     'avg_vader_neutral_score_per_submission': submission_dict['avg_vader_neutral_score'],
+                     'avg_vader_positive_score_per_submission': submission_dict['avg_vader_positive_score'],
+                     'avg_whole_comment_sentiment_flair_per_submission':
+                         submission_dict['avg_whole_comment_sentiment_flair']}
+        list_of_subreddit_dictionaries.append(temp_dict)
+
+    df = pd.DataFrame(list_of_subreddit_dictionaries)
+    df.to_csv(output_file_name)
+
+
+def run_aggregate_average_sentiment_scores_by_subreddit():
+    """saves the scores for the list of subreddits to 'aggregate_subreddit_sentiment_scores.csv"""
+
+    files = ['askreddit_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'aww_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'conservative_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'funny_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'investing_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'movies_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'neoliberal_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'neutralnews_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'plants_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'politics_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'toastme_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'roastme_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'wallstreetbets_30_months_comments_cleaned_standardized_vader_flair.csv',
+             'worldnews_30_months_comments_cleaned_standardized_vader_flair.csv'
+             ]
+
+    test_file_name = ['askreddit_30_months_comments_cleaned_standardized_vader_flair.csv']
+
+    aggregate_average_sentiment_scores_by_subreddit(files, 'aggregate_subreddit_sentiment_scores.csv')
+
+
+def graph_aggregate_csv(input_file_name):
+    """given a csv file grpahs the aggregate averages for all subreddits"""
+    df = read_csv_to_dataframe(input_file_name)
+
+    fig = px.scatter_3d(df, x='subreddit', y=df.columns, z='')
+
+
+def run_graph_aggregate_csv():
+    """runs the graph_aggregate_csv() function with aggregate_subreddit_sentiment_scores.csv"""
+    graph_aggregate_csv('aggregate_subreddit_sentiment_scores.csv')
+
+
 # test_get_comments()
 # test_get_submissions()
 # test_get_comments_from_submission()
@@ -931,4 +1518,25 @@ def run_get_tones_for_15k_subset():
 # run_build_comment_database_pipeline()
 # run_once_tones_to_csv()
 # run_get_15k_row_subset()
-run_get_tones_for_15k_subset()
+# run_get_tones_for_15k_subset()
+# test_get_df_from_csv()
+# test_print_rolling_average_of_sentiment_scores()
+
+# these do the same thing sort of
+# test_get_average_of_sentiment_scores()
+# test_get_avg_link_sentiment_scores()
+
+# test_get_avg_sentiment_scores_on_link_id_df()
+# test_graph_avg_sentiment_score_by_link_id()
+# test_graph_histogram_of_sentiment_scores_all_comments()
+# test_graph_histogram_of_sentiment_scores_on_link_ids()
+
+# run_build_pipeline_november_comments()
+# graph_nov_comments()
+# test_graph_histogram_by_time()
+
+# save_graphs_for_all_data()
+
+# run_aggregate_average_sentiment_scores_by_subreddit()
+
+# run_graph_aggregate_csv()
