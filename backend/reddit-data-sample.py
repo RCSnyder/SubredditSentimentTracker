@@ -25,6 +25,8 @@ from matplotlib.dates import (YEARLY, DateFormatter, rrulewrapper, RRuleLocator,
 import matplotlib.dates as mdate
 import plotly.express as px
 import plotly.graph_objects as go
+import calendar
+from plotly.subplots import make_subplots
 
 flair_sentiment = flair.models.TextClassifier.load('en-sentiment')
 # nltk.download('vader_lexicon')
@@ -120,6 +122,53 @@ def get_historical_submissions(subreddit, limit):
     return all_submissions
 
 
+def get_historical_submissions_new_method(subreddit, limit):
+    """queries the first friday of the past 30 months between 4pm and 8pm"""
+
+    # creates a dataframe for the first friday of the past 30 months
+    # dates = pd.date_range(start='2018-05-01', end='2020-10-31', freq='WOM-1FRI')
+
+    # every 3 days, gives 305 days
+    # dates = pd.date_range(start='2018-05-01', end='2020-11-18', freq='D')
+    # dates = pd.date_range(start='2018-05-01', end='2018-05-03', freq='D')
+    dates = pd.date_range(start='2010-07-18', end='2020-11-18', freq='D')
+
+    all_submissions = []
+    sub_dicts = []
+
+    for count, ds in enumerate(dates):
+        sorted_list = []
+        sub_dicts = []
+
+        start_time = int(dt.datetime(ds.year, ds.month, ds.day, 7, 0).timestamp())
+        end_time = int(dt.datetime(ds.year, ds.month, ds.day, 11, 0).timestamp())
+
+        # gets submissions and adds submission dictionary to master list
+        threads = list(get_submissions(subreddit, start_time, end_time, limit))
+
+        # gets the top 3 submissions with max num_comments
+        for sub_item in threads:
+            sub_dicts.append(sub_item.d_)
+
+        sorted_list = sorted(sub_dicts, key=lambda x: x['score'])
+
+        # for x in sorted_list[-3::]:
+        #   all_submissions.append(x)
+
+        if len(sorted_list) > 0:
+            all_submissions.append(sorted_list[-1])
+
+        # for item in threads:
+        #    if item.d_['num_comments'] > 500:
+        #        all_submissions.append(item.d_)
+        #        break
+
+        print('querying ', ds, '|', count, '/', len(dates))
+        print('total submissions:', len(all_submissions))
+
+    return all_submissions
+
+
 def get_november_historical_comments(subreddit, limit):
     """given a subreddit and limit gets the first 100 submissions in two consecutive 4 hour chunks """
     all_submissions = []
@@ -174,7 +223,9 @@ def save_historical_submission_comments(list_of_dictionary_submissions, file_nam
         submission_count += 1
         submission = (REDDIT.submission(id=submission_dict['id']))
 
-        submission.comments.replace_more(limit=None)
+        # replace_more limit = 0 gets top level comments
+        # limit = None gets all of them
+        submission.comments.replace_more(limit=0)
         for comment in submission.comments.list():
             temp_dict = {'body': comment.body, 'comment_id': comment, 'author': comment.author,
                          'created_utc': comment.created_utc, 'permalink': comment.permalink,
@@ -545,6 +596,7 @@ def generic_run_vader_sentiment_scores(raw_input_file, clean_output_file):
     df = df.drop(['Unnamed: 0'], axis=1)
 
     scores_df = add_vader_sentiment_scores(df)
+    scores_df['vader_negative_score'] = scores_df['vader_negative_score'].apply(lambda x: x * -1)
     scores_df.to_csv(clean_output_file)
 
 
@@ -788,7 +840,7 @@ def add_flair_sentiment_to_csv(input_file_name, output_file_name):
     df = df.drop(['Unnamed: 0'], axis=1)
 
     df['whole_comment_sentiment_flair'] = df['body'].apply(get_whole_flair_sentiment)
-    df['per_sentence_sentiment_flair'] = df['body'].apply(get_sentence_sentiments)
+    # df['per_sentence_sentiment_flair'] = df['body'].apply(get_sentence_sentiments)
 
     df.to_csv(output_file_name)
 
@@ -1009,7 +1061,8 @@ def print_rolling_average_of_sentiment_scores(input_file_name, window_size):
             label.set_visible(False)
         fig.autofmt_xdate()
 
-        plt.savefig(path_to_save + '/MA_avg_per_' + str(window_size) + '_' + subreddit_name + '_' + column_name + '.png')
+        plt.savefig(path_to_save + '/MA_avg_per_' + str(window_size) + '_' + subreddit_name + '_'
+                    + column_name + '_' + EXPERIMENT_NAME + '.png')
         plt.show()
 
 
@@ -1089,7 +1142,9 @@ def get_avg_sentiment_scores_on_link_id_df(input_file_name):
     df = get_df_from_csv(input_file_name)
 
     # creates date object column for matplotlib
-    df['date'] = df['created_utc'].apply(lambda x: mdate.epoch2num(x))
+    # df['date'] = df['created_utc'].apply(lambda x: mdate.epoch2num(x))
+    # for plotly
+    df['date'] = df['created_utc'].map(lambda val: dt.datetime.fromtimestamp(val).strftime('%Y-%m-%d %H:%M:%S'))
 
     # sorts df according to created_utc
     df = df.sort_values(by=['date'])
@@ -1115,6 +1170,33 @@ def test_get_avg_sentiment_scores_on_link_id_df():
     """tests get_avg_sentiment_scores_on_link_id() """
     df = get_avg_sentiment_scores_on_link_id_df('politics_30_months_comments_cleaned_standardized_vader_flair.csv')
     print(df)
+
+
+def graph_bitcoin_price_data(input_file_name):
+    """given a csv file of bitcoin price data, graphs a plotly graph of it"""
+    df_btc = pd.read_csv(input_file_name)
+    window_size_btc = int(len(df_btc) / 30)
+    df_btc['dt_date'] = df_btc['Date'].apply(lambda x: dt.datetime.strptime(x, '%b %d, %Y'))
+    df_btc['pct_change'] = df_btc['Change %'].apply(lambda x: float(x[:-1]))
+    df_btc['ma_pct_change'] = df_btc['pct_change'].rolling(window=window_size_btc).mean()
+    __min = df['pct_change'].min()
+    __max = df['pct_change'].max()
+    df_btc['norm_pct_change'] = df_btc['pct_change'].apply(lambda x: ((x - __min) / (__max - __min)))
+    df_btc['ma_pct_change'] = df_btc['norm_pct_change'].rolling(window=window_size_btc).mean()
+
+    fig = go.Figure([go.Scatter(
+        x=df_btc['dt_date'],
+        y=df_btc['ma_pct_change'],
+        line=dict(color='blue', width=1, dash='dot'),
+        name='Bitcoin MA of Percent Change',
+    )])
+    return fig
+
+
+def test_graph_bitcoin_price_data():
+    """tests graph_bitcoin_price_data() function with bitcoin.csv"""
+    fig = graph_bitcoin_price_data('bitcoin.csv')
+    fig.show()
 
 
 def graph_avg_sentiment_score_by_link_id(input_file_name, window_size):
@@ -1173,7 +1255,8 @@ def graph_avg_sentiment_score_by_link_id(input_file_name, window_size):
         for label in ax.xaxis.get_ticklabels()[::2]:
             label.set_visible(False)
         fig.autofmt_xdate()
-        plt.savefig(path_to_save + '/MA_avg_per_' + str(window_size) + '_submissions_' + subreddit_name + '_' + column_name + '.png')
+        plt.savefig(path_to_save + '/MA_avg_per_' + str(window_size) + '_submissions_' + subreddit_name + '_'
+                    + column_name + '_' + EXPERIMENT_NAME + '.png')
 
         plt.show()
 
@@ -1226,21 +1309,21 @@ def graph_histogram_of_sentiment_scores_all_comments(input_file_name):
     # print(df.loc[:, ['vader_compound_score', 'vader_negative_score', 'vader_neutral_score',
     #                  'vader_positive_score', 'whole_comment_sentiment_flair']])
 
-    #y, x, _ = plt.hist(df.loc[:, ['vader_compound_score', 'vader_negative_score', 'vader_neutral_score',
+    # y, x, _ = plt.hist(df.loc[:, ['vader_compound_score', 'vader_negative_score', 'vader_neutral_score',
     #                              'vader_positive_score', 'whole_comment_sentiment_flair']],
     #                   20, density=True, color=colors, label=list_of_columns, range=(-1.0000001, 1.0000001),
     #                   histtype='bar')
 
-    #print(y.max())
+    # print(y.max())
 
-    #plt.legend(prop={'size': 10})
-    #plt.title('Histogram of sentiment values for\n' + str(len(df)) + ' comments in /r/' + subreddit_name)
-    #plt.show()
+    # plt.legend(prop={'size': 10})
+    # plt.title('Histogram of sentiment values for\n' + str(len(df)) + ' comments in /r/' + subreddit_name)
+    # plt.show()
 
-    #fig2 = px.histogram(df, x='vader_compound_score', nbins=100)
-    #fig2.update_layout(bargap=.05)
-    #fig2.update_xaxes(nticks=30)
-    #fig2.show()
+    # fig2 = px.histogram(df, x='vader_compound_score', nbins=100)
+    # fig2.update_layout(bargap=.05)
+    # fig2.update_xaxes(nticks=30)
+    # fig2.show()
 
     fig3 = go.Figure()
     fig3.add_trace(go.Histogram(x=df['vader_compound_score'], name='vader_compound_score', nbinsx=nbins))
@@ -1256,9 +1339,9 @@ def graph_histogram_of_sentiment_scores_all_comments(input_file_name):
                                   str(len(df)) + ' comments in /r/' + subreddit_name + ' from May 2018 to Oct 2020')
     fig3.update_traces(opacity=0.65)
     fig3.write_image(HISTOGRAM_SAVE_DIR + "histograms_for_sentiment/"
-                     + subreddit_name + "_30_months_sentiment_by_all_comments.png")
+                     + subreddit_name + "_30_months_sentiment_by_all_comments_" + EXPERIMENT_NAME + "_method.png")
     fig3.write_html(HISTOGRAM_SAVE_DIR + "histograms_for_sentiment/"
-                    + subreddit_name + "_30_months_sentiment_by_all_comments.html")
+                    + subreddit_name + "_30_months_sentiment_by_all_comments_" + EXPERIMENT_NAME + "_method.html")
     fig3.show()
 
 
@@ -1290,9 +1373,9 @@ def graph_histogram_of_sentiment_scores_on_link_ids(input_file_name):
                                   str(len(df)) + ' submissions in /r/' + subreddit_name + ' from May 2018 to Oct 2020')
     fig3.update_traces(opacity=0.65)
     fig3.write_image(HISTOGRAM_SAVE_DIR + "histograms_for_sentiment/"
-                     + subreddit_name + "_30_months_sentiment_by_submission.png")
+                     + subreddit_name + "_30_months_sentiment_by_submission_" + EXPERIMENT_NAME + "_method.png")
     fig3.write_html(HISTOGRAM_SAVE_DIR + "histograms_for_sentiment/"
-                    + subreddit_name + "_30_months_sentiment_by_submission.html")
+                    + subreddit_name + "_30_months_sentiment_by_submission_" + EXPERIMENT_NAME + "_method.html")
     fig3.show()
 
 
@@ -1365,10 +1448,235 @@ def graph_histogram_by_time(input_file_name):
                                  str(len(df)) + ' comments in /r/' + subreddit_name + ' from May 2018 to Oct 2020')
     fig.update_traces(opacity=0.65)
     fig.write_image(HISTOGRAM_SAVE_DIR + "histograms_for_date_posted/"
-                    + subreddit_name + "_30_months_date_posted_histogram.png")
+                    + subreddit_name + "_30_months_date_posted_histogram_" + EXPERIMENT_NAME + "_method.png")
     fig.write_html(HISTOGRAM_SAVE_DIR + "histograms_for_date_posted/"
-                   + subreddit_name + "_30_months_date_posted_histogram.html")
+                   + subreddit_name + "_30_months_date_posted_histogram_" + EXPERIMENT_NAME + "_method.html")
     fig.show()
+
+
+def graph_moving_average_by_comment_plotly(input_file_name):
+    """given a csv file, and a window size, plots the moving average of the sentiment scores"""
+    subreddit_name = input_file_name.split('_')[0]
+    df = get_df_from_csv(input_file_name)
+
+    # creates date object column for matplotlib
+    df['date'] = df['created_utc'].map(lambda val: dt.datetime.fromtimestamp(val).strftime('%Y-%m-%d %H:%M:%S'))
+
+    # sorts df according to created_utc
+    df = df.sort_values(by=['date'])
+
+    num_comments = len(df)
+
+    window_size = int(num_comments / 30)
+
+    width_val = 2
+
+    # turn negative scores negative
+    # df['vader_negative_score'] = df['vader_negative_score'].apply(lambda x: x * -1)
+
+    _min = -1  # df['whole_comment_sentiment_flair'].mean() - .1
+    _max = 1  # df['vader_neutral_score'].mean() + .1
+
+    list_of_columns = ['vader_compound_score', 'vader_negative_score', 'vader_neutral_score',
+                       'vader_positive_score', 'whole_comment_sentiment_flair']
+    colors = ['blue', 'red', 'blue', 'green', 'purple']
+
+    # list_of_columns = ['vader_compound_score', 'whole_comment_sentiment_flair']
+    # colors = ['blue', 'purple']
+
+    path_to_save = HISTOGRAM_SAVE_DIR + 'ma_for_comments_plotly/' + subreddit_name
+    if not os.path.exists(path_to_save):
+        os.mkdir(path_to_save)
+
+    fig = go.Figure()
+    fig.update_layout(
+        title=('Moving averages of sentiment scores\n'
+               'per ' + str(window_size) + ' out of ' + str(num_comments) + ' comments in /r/' + subreddit_name +
+               ' between ' + str(df['date'].min()) + ' and ' + str(df['date'].max())),
+        yaxis_title='Sentiment Score'
+    )
+    fig.update_yaxes(range=[_min, _max], nticks=50)
+    fig.update_xaxes(nticks=60)
+    fig.update_layout(hovermode='x unified')
+    for i, (c_name, color) in enumerate(zip(list_of_columns, colors)):
+        # creates moving average of vader_compound_score
+        df['MA_' + c_name] = df[c_name].rolling(window=window_size).mean()
+
+        # gets full average
+        average = df[c_name].mean()
+
+        if c_name == 'whole_comment_sentiment_flair' or c_name == 'vader_compound_score':
+            width_val = 3
+        else:
+            width_val = 2
+
+        if c_name == 'whole_comment_sentiment_flair':
+            fig.add_trace(
+                go.Scatter(
+                    x=df['date'],
+                    y=df['MA_' + c_name],
+                    customdata=df['body'],
+                    line=dict(color=color, width=width_val),
+                    name=c_name,
+                    hovertemplate='<br> %{y:.3f} <br><br> comment body:<br> "%{customdata}"'
+                )
+            )
+        else:
+            fig.add_trace(
+                go.Scatter(
+                    x=df['date'],
+                    y=df['MA_' + c_name],
+                    line=dict(color=color, width=width_val),
+                    name=c_name,
+                    hovertemplate="<br> %{y:.3f}"
+                )
+            )
+        fig.add_trace(
+            go.Scatter(
+                x=[df['date'].iloc[0], df['date'].iloc[-1]],
+                y=[average, average],
+                line=dict(color=color, width=1, dash='dashdot'),
+                name=(c_name + ' average')
+            )
+        )
+
+    df_btc = pd.read_csv('bitcoin3.csv')
+    window_size_btc = int(len(df_btc) / 30)
+
+    df_btc['dt_date'] = df_btc['Date'].apply(lambda x: dt.datetime.strptime(x, '%b %d, %Y'))
+    df_btc['pct_change'] = df_btc['Change %'].apply(lambda x: float(x[:-1]))
+    __mean = df_btc['pct_change'].mean()
+    __std = df_btc['pct_change'].std()
+    df_btc['norm_pct_change'] = df_btc['pct_change'].apply(lambda x: ((x - __mean) / __std) + df['MA_whole_comment_sentiment_flair'].mean())
+    df_btc['ma_pct_change'] = df_btc['norm_pct_change'].rolling(window=window_size_btc).mean()
+
+    fig.add_trace(go.Scatter(
+        x=df_btc['dt_date'],
+        y=df_btc['ma_pct_change'],
+        line=dict(color='black', width=2, dash='dot'),
+        name='Bitcoin MA of Percent Change Per ' + str(window_size_btc) + ' days Normalized'
+    ))
+
+    fig.write_image(path_to_save + "/" + "MA_avg_per_" + str(window_size) + "_comments_" +
+                    subreddit_name + "_" + EXPERIMENT_NAME + "_method.png")
+
+    fig.write_html(path_to_save + "/" + "MA_avg_per_" + str(window_size) + "_comments_" +
+                   subreddit_name + "_" + EXPERIMENT_NAME + "_method.html")
+
+    fig.show()
+
+
+def test_graph_moving_average_by_comment_plotly():
+    """test runs the graph_moving_average_by_comment_plotly() function with
+    MA_avg_per_5000_politics_whole_comment_sentiment_flair_daily_500_plus_top_only.csv"""
+    graph_moving_average_by_comment_plotly(
+        'politics_daily_500_plus_top_only_method_comments_cleaned_standardized_vader_flair.csv')
+
+
+def graph_moving_average_by_submission_plotly(input_file_name):
+    """given a csv file graphs the moving average of sentiment scores when grouped by submission"""
+    df = get_avg_sentiment_scores_on_link_id_df(input_file_name)
+
+    list_of_columns_to_be_graphed = ['avg_vader_compound_score', 'avg_vader_negative_score', 'avg_vader_neutral_score',
+                                     'avg_vader_positive_score', 'avg_whole_comment_sentiment_flair']
+
+    colors = ['blue', 'red', 'blue', 'green', 'purple']
+
+    subreddit_name = input_file_name.split('_')[0]
+
+    # sorts df according to created_utc
+    df = df.sort_values(by=['date'])
+
+    # turn negative scores negative
+    # df['avg_vader_negative_score'] = df['avg_vader_negative_score'].apply(lambda x: x * -1)
+
+    # get total number of comments
+    num_submissions = len(df)
+
+    window_size = int(num_submissions / 30)
+
+    width_val = 2
+
+    _min = -1  # df['whole_comment_sentiment_flair'].mean() - .1
+    _max = 1  # df['vader_neutral_score'].mean() + .1
+
+    path_to_save = HISTOGRAM_SAVE_DIR + 'ma_for_submissions_plotly/' + subreddit_name
+    if not os.path.exists(path_to_save):
+        os.mkdir(path_to_save)
+
+    fig = go.Figure()
+    fig.update_layout(
+        title=('Moving averages of sentiment scores\n'
+               'per ' + str(window_size) + ' out of ' + str(num_submissions) + ' submissions in /r/' + subreddit_name +
+               ' between ' + str(df['date'].min()) + ' and ' + str(df['date'].max())),
+        yaxis_title='Sentiment Score'
+    )
+    fig.update_yaxes(range=[_min, _max], nticks=50)
+    fig.update_xaxes(nticks=60)
+    fig.update_layout(hovermode='x unified')
+
+    for i, (c_name, color) in enumerate(zip(list_of_columns_to_be_graphed, colors)):
+
+        # creates moving average of vader_compound_score
+        df['MA_' + c_name] = df[c_name].rolling(window=window_size).mean()
+
+        # gets full average
+        average = df[c_name].mean()
+
+        if c_name == 'avg_whole_comment_sentiment_flair' or c_name == 'avg_vader_compound_score':
+            width_val = 3
+        else:
+            width_val = 2
+
+        fig.add_trace(
+            go.Scatter(
+                x=df['date'],
+                y=df['MA_' + c_name],
+                line=dict(color=color, width=width_val),
+                name=c_name
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[df['date'].iloc[0], df['date'].iloc[-1]],
+                y=[average, average],
+                line=dict(color=color, width=1, dash='dashdot'),
+                name=(c_name + ' average')
+            )
+        )
+
+    df_btc = pd.read_csv('bitcoin3.csv')
+    window_size_btc = int(len(df_btc) / 30)
+
+    df_btc['dt_date'] = df_btc['Date'].apply(lambda x: dt.datetime.strptime(x, '%b %d, %Y'))
+    df_btc['pct_change'] = df_btc['Change %'].apply(lambda x: float(x[:-1]))
+    __mean = df_btc['pct_change'].mean()
+    __std = df_btc['pct_change'].std()
+    df_btc['norm_pct_change'] = df_btc['pct_change'].apply(lambda x: ((x - __mean) / __std) + df['MA_avg_whole_comment_sentiment_flair'].mean())
+    df_btc['ma_pct_change'] = df_btc['norm_pct_change'].rolling(window=window_size_btc).mean()
+
+    fig.add_trace(go.Scatter(
+        x=df_btc['dt_date'],
+        y=df_btc['ma_pct_change'],
+        line=dict(color='black', width=2, dash='dot'),
+        name='Bitcoin MA of Percent Change Per ' + str(window_size_btc) + ' days Normalized'
+    ))
+
+    fig.write_image(path_to_save + "/" + "MA_avg_per_" + str(window_size) + "_submissions_" +
+                    subreddit_name + "_" + EXPERIMENT_NAME + "_method.png")
+
+    fig.write_html(path_to_save + "/" + "MA_avg_per_" + str(window_size) + "_submissions_" +
+                   subreddit_name + "_" + EXPERIMENT_NAME + "_method.html")
+
+    fig.show()
+
+
+def test_graph_moving_average_by_submission_plotly():
+    """tests the graph_moving_average_by_submission_plotly() function with
+    'MA_avg_per_5000_politics_whole_comment_sentiment_flair_daily_500_plus_top_only.csv'
+    """
+    graph_moving_average_by_submission_plotly(
+        'politics_daily_500_plus_top_only_method_comments_cleaned_standardized_vader_flair.csv')
 
 
 def test_graph_histogram_by_time():
@@ -1487,6 +1795,71 @@ def run_graph_aggregate_csv():
     graph_aggregate_csv('aggregate_subreddit_sentiment_scores.csv')
 
 
+def build_new_pipeline_new_sample(subreddit, limit):
+    """runs the entire pipeline of data extraction, sentiment analysis and graphing"""
+    data_file_name = subreddit + '_' + EXPERIMENT_NAME + '_method_comments'
+    cleaned_file_name = data_file_name + '_cleaned'
+    standardized_file_name = cleaned_file_name + '_standardized'
+    vader_file_name = standardized_file_name + '_vader'
+    flair_file_name = vader_file_name + '_flair'
+    # ibm_tone_file_name = flair_file_name + '_tones'
+
+    # get historical data on every first friday of past 30 months
+    comment_data = get_historical_submissions_new_method(subreddit, limit)
+
+    # save to csv
+    save_historical_submission_comments(comment_data, data_file_name + '.csv')
+
+    # sanitize characters
+    print('sanitizing characters')
+    sanitize_characters(data_file_name + '.csv', cleaned_file_name + '.csv')
+
+    # standardize comments
+    generic_run_standardize_comments(cleaned_file_name + '.csv', standardized_file_name + '.csv')
+
+    # add vader sentiment scores
+    generic_run_vader_sentiment_scores(standardized_file_name + '.csv', vader_file_name + '.csv')
+
+    # add flair sentiment score
+    add_flair_sentiment_to_csv(vader_file_name + '.csv', flair_file_name + '.csv')
+
+    # graphs a histogram of the comments extracted by time posted
+    graph_histogram_by_time(flair_file_name + '.csv')
+
+    # graphs and saves a histogram of the sentiment scores for all comments
+    graph_histogram_of_sentiment_scores_all_comments(flair_file_name + '.csv')
+
+    # graphs and saves a histogram of the sentiment scores for all comments grouped by submission
+    graph_histogram_of_sentiment_scores_on_link_ids(flair_file_name + '.csv')
+
+    # graphs and saves the moving averages for comments
+    # print_rolling_average_of_sentiment_scores(flair_file_name + '.csv', 500)
+    graph_moving_average_by_comment_plotly(flair_file_name + '.csv')
+
+    # graphs and saves the moving averages for comments by submission
+    # graph_avg_sentiment_score_by_link_id(flair_file_name + '.csv', 50)
+    graph_moving_average_by_submission_plotly(flair_file_name + '.csv')
+
+
+def run_build_new_pipeline_new_sample():
+    """runs build_new_pipeline_new_sample() with the subreddit politics"""
+    build_new_pipeline_new_sample('bitcoin', 100)
+
+
+def run_build_new_pipeline_new_sample_all_subbreddits():
+    """runs the new pipeline on all subreddits in the list.
+    Will take a LONG time"""
+
+    subreddit_names = ['askreddit', 'aww', 'conservative', 'funny', 'investing', 'movies', 'neoliberal', 'bitcoin'
+                                                                                                         'neutralnews',
+                       'plants', 'politics', 'toastme', 'roastme', 'wallstreetbets', 'worldnews']
+
+    for s in subreddit_names:
+        build_new_pipeline_new_sample(s, 100)
+
+
+EXPERIMENT_NAME = 'every_day_top_1_sub_top_only_comments_bitcoin_price_overlay_window_30'
+
 # test_get_comments()
 # test_get_submissions()
 # test_get_comments_from_submission()
@@ -1540,3 +1913,16 @@ def run_graph_aggregate_csv():
 # run_aggregate_average_sentiment_scores_by_subreddit()
 
 # run_graph_aggregate_csv()
+
+#run_build_new_pipeline_new_sample()
+
+# test_graph_moving_average_by_comment_plotly()
+# test_graph_moving_average_by_submission_plotly()
+
+# test_graph_bitcoin_price_data()
+graph_moving_average_by_submission_plotly(
+    'bitcoin_every_day_top_1_sub_top_only_comments_bitcoin_price_overlay_method_comments_cleaned_standardized_vader_flair.csv')
+
+
+graph_moving_average_by_comment_plotly(
+    'bitcoin_every_day_top_1_sub_top_only_comments_bitcoin_price_overlay_method_comments_cleaned_standardized_vader_flair.csv')
