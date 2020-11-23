@@ -25,6 +25,7 @@ from matplotlib.dates import (YEARLY, DateFormatter, rrulewrapper, RRuleLocator,
 import matplotlib.dates as mdate
 import plotly.express as px
 import plotly.graph_objects as go
+from wordcloud import WordCloud, STOPWORDS
 import calendar
 from plotly.subplots import make_subplots
 
@@ -153,12 +154,13 @@ def get_historical_submissions_new_method(subreddit, limit):
         # sorts based on score
         sorted_list = sorted(sub_dicts, key=lambda x: x['score'])
 
-        if len(sorted_list) > 3:
-            for x in sorted_list[-3::]:
-                all_submissions.append(x)
+        #if len(sorted_list) > 3:
+        #    for x in sorted_list[-3::]:
+        #        all_submissions.append(x)
 
         # gets top
-        # all_submissions.append(sorted_list[-1])
+        if len(sorted_list) > 0:
+            all_submissions.append(sorted_list[-1])
 
         # for item in threads:
         #    if item.d_['num_comments'] > 500:
@@ -1361,7 +1363,6 @@ def graph_histogram_of_sentiment_scores_on_link_ids(input_file_name):
     subreddit_name = input_file_name.split('_')[0]
     df = get_avg_sentiment_scores_on_link_id_df(input_file_name)
     nbins = 250
-    df['date'] = df['created_utc'].map(lambda val: dt.datetime.fromtimestamp(val).strftime('%Y-%m-%d %H:%M:%S'))
 
     list_of_columns_to_be_graphed = ['avg_vader_compound_score', 'avg_vader_negative_score', 'avg_vader_neutral_score',
                                      'avg_vader_positive_score', 'avg_whole_comment_sentiment_flair']
@@ -1850,26 +1851,140 @@ def build_new_pipeline_new_sample(subreddit, limit):
     # graph_avg_sentiment_score_by_link_id(flair_file_name + '.csv', 50)
     graph_moving_average_by_submission_plotly(flair_file_name + '.csv')
 
+    get_wordcloud_from_csv(flair_file_name + '.csv')
+
 
 def run_build_new_pipeline_new_sample():
     """runs build_new_pipeline_new_sample() with the subreddit politics"""
-    build_new_pipeline_new_sample('bitcoin', 100)
+    build_new_pipeline_new_sample('politics', 100)
 
 
 def run_build_new_pipeline_new_sample_all_subbreddits():
     """runs the new pipeline on all subreddits in the list.
     Will take a LONG time"""
 
-    subreddit_names = ['askreddit', 'aww', 'funny', 'toastme', 'roastme', 'me_irl',
-                       '2meirl4meirl', 'investing', 'wallstreetbets', 'globaloffensive',
-                       'movies', 'plants', 'upliftingnews', 'law', 'leagueoflegends', 'twoxchromosomes',
-                       'conservative', 'neoliberal', 'politics', 'neutralpolitics', 'worldnews']
+    subreddit_names = ['politics']
+
+    # 'me_irl', '2meirl4meirl','upliftingnews', 'investing', 'wallstreetbets', 'globaloffensive', 'movies', 'plants', 'askreddit', 'law', 'leagueoflegends',
+    times = []
 
     for s in subreddit_names:
+        start_time = time.time()
+        print('querying /r/', s)
         build_new_pipeline_new_sample(s, 100)
+        print('finished querying /r/', s)
+        e_time = int(time.time() - start_time)
+        print('elapsed time:', e_time)
+        temp_dict = {'Subreddit': s, 'Time': e_time}
+        times.append(temp_dict)
+
+    for x in times:
+        print(x)
 
 
-EXPERIMENT_NAME = 'every_3rd_day_top_3_subs_top_comments_only'
+def get_wordcloud_from_csv(input_file_name):
+    """given a csv save the wordcloud pngs generated for each sentiment score's quartile"""
+    list_of_columns = ['whole_comment_sentiment_flair', 'vader_compound_score'] #, 'vader_negative_score', 'vader_neutral_score',
+                       #'vader_positive_score', 'whole_comment_sentiment_flair']
+    save_names = ['bottom_10_percent', 'middle_10_percent', 'top_10_percent']
+    # get df from csv
+    df = pd.read_csv(input_file_name)
+
+    # get subreddit name
+    subreddit_name = input_file_name.split('_')[0]
+
+    # create save directory
+    path_to_save = HISTOGRAM_SAVE_DIR + 'wordclouds/' + subreddit_name
+    if not os.path.exists(path_to_save):
+        os.mkdir(path_to_save)
+
+    save_file_name = ''
+
+    stopwords = set(STOPWORDS)
+
+    # get word clouds for each sentiment score
+    for col in list_of_columns:
+
+        list_of_dfs = []
+        df_bot_25_slice = df[df[col] < df[col].quantile(.10)]
+        df_top_25_slice = df[df[col] > df[col].quantile(.90)]
+        df_middle_50_slice = df[df[col].between(*df[col].quantile([.45, .55]).tolist())]
+
+        list_of_dfs.append(df_bot_25_slice)
+        list_of_dfs.append(df_middle_50_slice)
+        list_of_dfs.append(df_top_25_slice)
+
+        # print('df_bot_25_slice min and max', df_bot_25_slice[col].min(), df_bot_25_slice[col].max(), col)
+        # print('df_middle_50_slice min and max', df_middle_50_slice[col].min(), df_middle_50_slice[col].max())
+        # print('df_top_25_slice min and max', df_top_25_slice[col].min(), df_top_25_slice[col].max(), col)
+
+        for name, df in zip(save_names, list_of_dfs):
+            save_file_name = subreddit_name + '_wordcloud_' + col + '_' + name
+            title_name = '/r/' + subreddit_name + ' ' + name + ' ' + col
+
+            # make word cloud image
+            print('generating word cloud...:', name)
+            print()
+            comment_words = ''
+            for val in df.body:
+
+                val = str(val)
+                tokens = val.split()
+
+                for i in range(len(tokens)):
+                    tokens[i] = tokens[i].lower()
+
+                comment_words += " ".join(tokens) + " "
+
+            wordcloud = WordCloud(width=800, height=800,
+                                  background_color='white',
+                                  stopwords=stopwords,
+                                  min_font_size=10).generate(comment_words)
+
+            plt.figure(figsize=(8, 8), facecolor=None)
+            plt.title(title_name)
+            plt.imshow(wordcloud)
+            plt.axis("off")
+            plt.tight_layout(pad=0)
+
+            #plt.show()
+
+            # save word cloud image
+            plt.savefig(path_to_save + '/' + save_file_name + '.png')
+            print('done')
+
+
+def test_get_wordcloud_from_csv():
+    """tests the get_wordcloud_from_csv() function with
+    'askreddit_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv'"""
+
+    get_wordcloud_from_csv(
+        'bitcoin_every_day_top_1_sub_top_only_comments_bitcoin_price_overlay_method_comments_cleaned_standardized_vader_flair.csv')
+
+
+def run_all_get_wordcloud_from_csv():
+    subreddits = ['leagueoflegends_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'law_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'askreddit_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'plants_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'movies_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'globaloffensive_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'wallstreetbets_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'investing_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'upliftingnews_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  '2meirl4meirl_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'me_irl_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'roastme_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'toastme_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'funny_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'aww_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+                  'bitcoin_every_day_top_1_sub_top_only_comments_bitcoin_price_overlay_method_comments_cleaned_standardized_vader_flair.csv']
+
+    for s in subreddits:
+        get_wordcloud_from_csv(s)
+
+
+EXPERIMENT_NAME = 'every_3rd_day_top_1_sub_top_comments_only'
 
 # test_get_comments()
 # test_get_submissions()
@@ -1938,4 +2053,8 @@ EXPERIMENT_NAME = 'every_3rd_day_top_3_subs_top_comments_only'
 # graph_moving_average_by_comment_plotly(
 #    'bitcoin_every_day_top_1_sub_top_only_comments_bitcoin_price_overlay_method_comments_cleaned_standardized_vader_flair.csv')
 
-run_build_new_pipeline_new_sample_all_subbreddits()
+# run_build_new_pipeline_new_sample_all_subbreddits()
+
+# test_get_wordcloud_from_csv()
+
+# run_all_get_wordcloud_from_csv()
