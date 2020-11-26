@@ -132,7 +132,7 @@ def get_historical_submissions_new_method(subreddit, limit):
     # every 3 days, gives 305 days
     # dates = pd.date_range(start='2018-05-01', end='2020-11-18', freq='D')
     # dates = pd.date_range(start='2018-05-01', end='2018-05-03', freq='D')
-    dates = pd.date_range(start='2016-01-01', end='2020-11-20', freq='3D')
+    dates = pd.date_range(start='2008-01-01', end='2020-11-23', freq='5D')
 
     all_submissions = []
     sub_dicts = []
@@ -144,8 +144,18 @@ def get_historical_submissions_new_method(subreddit, limit):
         start_time = int(dt.datetime(ds.year, ds.month, ds.day, 7, 0).timestamp())
         end_time = int(dt.datetime(ds.year, ds.month, ds.day, 16, 0).timestamp())
 
-        # gets submissions and adds submission dictionary to master list
-        threads = list(get_submissions(subreddit, start_time, end_time, limit))
+        tries = 30
+        for i in range(tries):
+            try:
+                # gets submissions and adds submission dictionary to master list
+                threads = list(get_submissions(subreddit, start_time, end_time, limit))
+            except KeyError as e:
+                if i < tries - 1:
+                    print('error: retrying get_submissions', i, '/', tries)
+                    continue
+                else:
+                    raise
+            break
 
         # appends all the submission dictionaries from the 100 queried
         for sub_item in threads:
@@ -154,7 +164,7 @@ def get_historical_submissions_new_method(subreddit, limit):
         # sorts based on score
         sorted_list = sorted(sub_dicts, key=lambda x: x['score'])
 
-        #if len(sorted_list) > 3:
+        # if len(sorted_list) > 3:
         #    for x in sorted_list[-3::]:
         #        all_submissions.append(x)
 
@@ -1561,9 +1571,9 @@ def graph_moving_average_by_comment_plotly(input_file_name):
     # df_btc['ma_pct_change'] = df_btc['norm_pct_change'].rolling(window=window_size_btc).mean()
 
     # fig.add_trace(go.Scatter(
-        #     x=df_btc['dt_date'],
-        #     y=df_btc['ma_pct_change'],
-        #     line=dict(color='black', width=2, dash='dot'),
+    #     x=df_btc['dt_date'],
+    #     y=df_btc['ma_pct_change'],
+    #     line=dict(color='black', width=2, dash='dot'),
     #     name='Bitcoin MA of Percent Change Per ' + str(window_size_btc) + ' days Normalized'
     # ))
 
@@ -1667,9 +1677,9 @@ def graph_moving_average_by_submission_plotly(input_file_name):
     # df_btc['ma_pct_change'] = df_btc['norm_pct_change'].rolling(window=window_size_btc).mean()
 
     # fig.add_trace(go.Scatter(
-        #     x=df_btc['dt_date'],
-        #     y=df_btc['ma_pct_change'],
-        #     line=dict(color='black', width=2, dash='dot'),
+    #     x=df_btc['dt_date'],
+    #     y=df_btc['ma_pct_change'],
+    #     line=dict(color='black', width=2, dash='dot'),
     #    name='Bitcoin MA of Percent Change Per ' + str(window_size_btc) + ' days Normalized'
     # ))
 
@@ -1773,25 +1783,28 @@ def aggregate_average_sentiment_scores_by_subreddit(file_name_list, output_file_
 def run_aggregate_average_sentiment_scores_by_subreddit():
     """saves the scores for the list of subreddits to 'aggregate_subreddit_sentiment_scores.csv"""
 
-    files = ['askreddit_30_months_comments_cleaned_standardized_vader_flair.csv',
-             'aww_30_months_comments_cleaned_standardized_vader_flair.csv',
-             'conservative_30_months_comments_cleaned_standardized_vader_flair.csv',
-             'funny_30_months_comments_cleaned_standardized_vader_flair.csv',
-             'investing_30_months_comments_cleaned_standardized_vader_flair.csv',
-             'movies_30_months_comments_cleaned_standardized_vader_flair.csv',
-             'neoliberal_30_months_comments_cleaned_standardized_vader_flair.csv',
-             'neutralnews_30_months_comments_cleaned_standardized_vader_flair.csv',
-             'plants_30_months_comments_cleaned_standardized_vader_flair.csv',
-             'politics_30_months_comments_cleaned_standardized_vader_flair.csv',
-             'toastme_30_months_comments_cleaned_standardized_vader_flair.csv',
-             'roastme_30_months_comments_cleaned_standardized_vader_flair.csv',
-             'wallstreetbets_30_months_comments_cleaned_standardized_vader_flair.csv',
-             'worldnews_30_months_comments_cleaned_standardized_vader_flair.csv'
+    files = ['politics_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'leagueoflegends_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'law_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'askreddit_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'plants_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'movies_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'globaloffensive_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'wallstreetbets_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'investing_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'upliftingnews_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             '2meirl4meirl_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'me_irl_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'roastme_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'toastme_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'funny_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'aww_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+             'bitcoin_every_day_top_1_sub_top_only_comments_bitcoin_price_overlay_method_comments_cleaned_standardized_vader_flair.csv'
              ]
 
     test_file_name = ['askreddit_30_months_comments_cleaned_standardized_vader_flair.csv']
 
-    aggregate_average_sentiment_scores_by_subreddit(files, 'aggregate_subreddit_sentiment_scores.csv')
+    aggregate_average_sentiment_scores_by_subreddit(files, 'every_3rd_day_aggregate_subreddit_sentiment_scores.csv')
 
 
 def graph_aggregate_csv(input_file_name):
@@ -1803,7 +1816,7 @@ def graph_aggregate_csv(input_file_name):
 
 def run_graph_aggregate_csv():
     """runs the graph_aggregate_csv() function with aggregate_subreddit_sentiment_scores.csv"""
-    graph_aggregate_csv('aggregate_subreddit_sentiment_scores.csv')
+    graph_aggregate_csv('every_3rd_day_aggregate_subreddit_sentiment_scores.csv')
 
 
 def build_new_pipeline_new_sample(subreddit, limit):
@@ -1884,11 +1897,15 @@ def run_build_new_pipeline_new_sample_all_subbreddits():
 
 def get_wordcloud_from_csv(input_file_name):
     """given a csv save the wordcloud pngs generated for each sentiment score's quartile"""
-    list_of_columns = ['whole_comment_sentiment_flair', 'vader_compound_score'] #, 'vader_negative_score', 'vader_neutral_score',
-                       #'vader_positive_score', 'whole_comment_sentiment_flair']
+    list_of_columns = ['whole_comment_sentiment_flair',
+                       'vader_compound_score']  # , 'vader_negative_score', 'vader_neutral_score',
+    # 'vader_positive_score', 'whole_comment_sentiment_flair']
     save_names = ['bottom_10_percent', 'middle_10_percent', 'top_10_percent']
     # get df from csv
     df = pd.read_csv(input_file_name)
+
+    # between certain dates
+    df = df[df['created_utc'] > 1601510400]
 
     # get subreddit name
     subreddit_name = input_file_name.split('_')[0]
@@ -1947,10 +1964,10 @@ def get_wordcloud_from_csv(input_file_name):
             plt.axis("off")
             plt.tight_layout(pad=0)
 
-            #plt.show()
+            # plt.show()
 
             # save word cloud image
-            plt.savefig(path_to_save + '/' + save_file_name + '.png')
+            plt.savefig(path_to_save + '/' + save_file_name + EXPERIMENT_NAME + '.png')
             print('done')
 
 
@@ -1963,28 +1980,29 @@ def test_get_wordcloud_from_csv():
 
 
 def run_all_get_wordcloud_from_csv():
-    subreddits = ['leagueoflegends_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'law_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'askreddit_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'plants_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'movies_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'globaloffensive_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'wallstreetbets_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'investing_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'upliftingnews_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  '2meirl4meirl_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'me_irl_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'roastme_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'toastme_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'funny_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'aww_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
-                  'bitcoin_every_day_top_1_sub_top_only_comments_bitcoin_price_overlay_method_comments_cleaned_standardized_vader_flair.csv']
+    subreddits = [
+        'leagueoflegends_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'law_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'askreddit_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'plants_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'movies_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'globaloffensive_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'wallstreetbets_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'investing_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'upliftingnews_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        '2meirl4meirl_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'me_irl_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'roastme_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'toastme_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'funny_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'aww_every_3rd_day_top_1_sub_top_comments_only_method_comments_cleaned_standardized_vader_flair.csv',
+        'bitcoin_every_day_top_1_sub_top_only_comments_bitcoin_price_overlay_method_comments_cleaned_standardized_vader_flair.csv']
 
     for s in subreddits:
         get_wordcloud_from_csv(s)
 
 
-EXPERIMENT_NAME = 'every_3rd_day_top_1_sub_top_comments_only'
+EXPERIMENT_NAME = '_specific_date_after_2020-10-01'
 
 # test_get_comments()
 # test_get_submissions()
@@ -2040,6 +2058,7 @@ EXPERIMENT_NAME = 'every_3rd_day_top_1_sub_top_comments_only'
 
 # run_graph_aggregate_csv()
 
+
 # run_build_new_pipeline_new_sample()
 
 # test_graph_moving_average_by_comment_plotly()
@@ -2058,3 +2077,5 @@ EXPERIMENT_NAME = 'every_3rd_day_top_1_sub_top_comments_only'
 # test_get_wordcloud_from_csv()
 
 # run_all_get_wordcloud_from_csv()
+
+#get_wordcloud_from_csv('bitcoin_every_day_top_1_sub_top_only_comments_bitcoin_price_overlay_method_comments_cleaned_standardized_vader_flair.csv')

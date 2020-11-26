@@ -554,3 +554,14 @@ backend/politics_past_30_months_comments.csv
 /backend/wordclouds/toastme/
 /backend/wordclouds/upliftingnews/
 /backend/wordclouds/wallstreetbets/
+/backend/histograms_for_date_posted.zip
+/backend/histograms_for_sentiment.zip
+/backend/ma_for_comments_plotly.zip
+/backend/ma_for_submissions_plotly.zip
+/backend/wordclouds.zip
+/backend/every_3rd_day_aggregate_subreddit_sentiment_scores.csv
+/backend/wordclouds/bitcoin_2014_first_10xrally/
+/backend/wordclouds/bitcoin_2017_highs/
+/backend/wordclouds/bitcoin_2018_lows/
+/backend/wordclouds/bitcoin_2020_rally/
+/backend/wordclouds/bitcoin_all/
